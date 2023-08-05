@@ -2,10 +2,11 @@ import { getBinanceP2PRates, getCBRRates, getKoronaPayRates } from './api'
 import { db } from './db'
 
 export interface Rates {
-	binanceBuyRubToUsdt: number
-	binanceSellUsdtToGel: number
-	koronaGelRate: number
-	koronaUsdRate: number
+	binanceBuyRubToUSDT: number
+	binanceSellUsdtToGEL: number
+	binanceSellUsdtToUSD: number
+	koronaRateGEL: number
+	koronaRateUSD: number
 	CBRRateUSD: number
 	CBRRateGEL: number
 	updatedDate: number
@@ -13,38 +14,40 @@ export interface Rates {
 
 export const updateRates = async () => {
 	try {
-		
+		const binanceBuyRubToUsdt = async () =>
+			await getBinanceP2PRates('USDT', 'RUB', ['TinkoffNew', 'Tinkoff'], 'BUY')
+		const binanceSellUsdtToGel = async () =>
+			await getBinanceP2PRates('USDT', 'GEL', ['BankOfGeorgia'], 'SELL')
+		const binanceSellUsdtToUsd = async () =>
+			await getBinanceP2PRates('USDT', 'USD', ['BankOfGeorgia'], 'SELL')
+		const koronaGelRate = async () => await getKoronaPayRates('GEL')
+		const koronaUsdRate = async () => await getKoronaPayRates('USD')
+		const CBRRates = async () => await getCBRRates(['USD', 'GEL'])
 
-	const binanceBuyRubToUsdt = async () =>
-		await getBinanceP2PRates('USDT', 'RUB', ['TinkoffNew', 'Tinkoff'], 'BUY')
-	const binanceSellUsdtToGel = async () =>
-		await getBinanceP2PRates('USDT', 'GEL', ['BankOfGeorgia'], 'SELL')
-	const koronaGelRate = async () => await getKoronaPayRates('GEL')
-	const koronaUsdRate = async () => await getKoronaPayRates('USD')
-	const CBRRates = async () => await getCBRRates(['USD', 'GEL'])
+		const responses = await Promise.all([
+			binanceBuyRubToUsdt(),
+			binanceSellUsdtToGel(),
+			binanceSellUsdtToUsd(),
+			koronaGelRate(),
+			koronaUsdRate(),
+			CBRRates(),
+		])
+		const flatNormalizedResponses = responses
+			.flat()
+			.map((rate: string) => Number(rate))
+		const result = {
+			binanceBuyRubToUSDT: flatNormalizedResponses[0],
+			binanceSellUsdtToGEL: flatNormalizedResponses[1],
+			binanceSellUsdtToUSD: flatNormalizedResponses[2],
+			koronaRateGEL: flatNormalizedResponses[3],
+			koronaRateUSD: flatNormalizedResponses[4],
+			CBRRateUSD: flatNormalizedResponses[5],
+			CBRRateGEL: flatNormalizedResponses[6],
+			updatedDate: new Date().getTime(),
+		} as Rates
 
-	const responses = await Promise.all([
-		binanceBuyRubToUsdt(),
-		binanceSellUsdtToGel(),
-		koronaGelRate(),
-		koronaUsdRate(),
-		CBRRates(),
-	])
-	const flatNormalizedResponses = responses
-		.flat()
-		.map((rate: string) => Number(rate))
-	const result = {
-		binanceBuyRubToUsdt: flatNormalizedResponses[0],
-		binanceSellUsdtToGel: flatNormalizedResponses[1],
-		koronaGelRate: flatNormalizedResponses[2],
-		koronaUsdRate: flatNormalizedResponses[3],
-		CBRRateUSD: flatNormalizedResponses[4],
-		CBRRateGEL: flatNormalizedResponses[5],
-		updatedDate: new Date().getTime(),
-	} as Rates
-
-	await db.push(`/rates`, result, false)
-		console.info('rates are updated');
+		await db.push(`/rates`, result, false)
+		console.info('rates are updated')
 	} catch (error) {
 		console.error(error)
 	}
