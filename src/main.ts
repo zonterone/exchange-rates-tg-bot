@@ -6,9 +6,10 @@ const updateRatesCron = new CronJob('*/30 * * * *', async () => {
   await updateRates()
 })
 
+// initial update
 updateRates()
 
-bot.launch()
+bot.start()
 console.info('Bot started')
 
 updateRatesCron.start()
@@ -16,10 +17,10 @@ console.info('Update rates cron started')
 
 
 process.once('SIGINT', () => {
-  bot.stop('SIGINT')
+  bot.stop()
   updateRatesCron.stop()
 })
 process.once('SIGTERM', () => {
-  bot.stop('SIGTERM')
+  bot.stop()
   updateRatesCron.stop()
 })

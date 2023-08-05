@@ -68,11 +68,11 @@ export const getKoronaPayRates = async (
 export const getCBRRates = async (currencies: ('USD' | 'GEL')[]) => {
 	const response = (await ky
 		.get('https://www.cbr-xml-daily.ru/daily_json.js', {})
-    .json()) as any
-  
-  const result = currencies.map((currency) => {
-    return response.Valute[currency].Value
-   })
+		.json()) as any
+
+	const result = currencies.map((currency) => {
+		return response.Valute[currency].Value
+	})
 
 	return result
 }

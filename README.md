@@ -34,7 +34,7 @@ docker run -d --name=exchange-rates-tg-bot \
 zonter/exchange-rates-tg-bot:latest
 ```
 
-5. Start conversation with your bot. Bot triggers to /start or /rates command.
+1. Start conversation with your bot. Bot triggers to /start command.
 
 ## ENV variables
 

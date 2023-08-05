@@ -9,9 +9,9 @@
   "dependencies": {
     "cron": "^2.4.0",
     "dotenv": "^16.0.3",
+    "grammy": "^1.17.2",
     "ky": "^0.33.3",
-    "node-json-db": "^2.2.0",
-    "telegraf": "^4.12.2"
+    "node-json-db": "^2.2.0"
   },
   "devDependencies": {
     "@tsconfig/recommended": "^1.0.2",
