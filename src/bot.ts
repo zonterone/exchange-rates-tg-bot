@@ -40,7 +40,7 @@ const getInlineKeyboard = (
 	return inlineKeyboard
 }
 
-bot.api.setMyCommands([{ command: 'start', description: 'Start bot' }])
+bot.api.setMyCommands([{ command: 'start', description: 'Start bot' }, { command: 'rates', description: 'Get rates' }])
 
 bot.command(['start'], async (ctx) => {
 	await db.push(`/users/${ctx.message?.chat.id}`, {}, false)
