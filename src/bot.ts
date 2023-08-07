@@ -40,7 +40,12 @@ const getInlineKeyboard = (
 	return inlineKeyboard
 }
 
-bot.api.setMyCommands([{ command: 'start', description: 'Start bot' }, { command: 'rates', description: 'Get rates' }])
+const commandsList = {
+	start: { command: 'start', description: 'Start bot' },
+	rates: { command: 'rates', description: 'Get rates' },
+}
+
+bot.api.setMyCommands(Object.values(commandsList))
 
 bot.command(['start'], async (ctx) => {
 	await db.push(`/users/${ctx.message?.chat.id}`, {}, false)
@@ -50,8 +55,11 @@ bot.command(['start'], async (ctx) => {
 	)
 })
 
-bot.on('message', async (ctx) => {
-	if (getRatesButtonText === ctx.message?.text) {
+bot.on(['message', '::bot_command'], async (ctx) => {
+	if (
+		getRatesButtonText === ctx.message?.text ||
+		ctx.hasCommand(commandsList.rates.command)
+	) {
 		const ratesMessage = await getRates()
 		ctx.reply(ratesMessage)
 	} else if (!isNaN(Number(ctx.message?.text))) {
