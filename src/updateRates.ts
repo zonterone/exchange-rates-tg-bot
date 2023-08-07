@@ -34,7 +34,7 @@ export const updateRates = async () => {
 		])
 		const flatNormalizedResponses = responses
 			.flat()
-			.map((rate: string) => Number(rate))
+			.map((rate) => Number(rate))
 		const result = {
 			binanceBuyRubToUSDT: flatNormalizedResponses[0],
 			binanceSellUsdtToGEL: flatNormalizedResponses[1],

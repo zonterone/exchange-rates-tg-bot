@@ -1,12 +1,20 @@
 import ky from 'ky'
 
+const api = ky.create({
+	retry: {
+		limit: 3,
+		backoffLimit: 5000,
+	},
+	timeout: 60000,
+})
+
 export const getBinanceP2PRates = async (
 	asset: string,
 	fiat: string,
 	payTypes: string[],
 	tradeType: 'BUY' | 'SELL'
-) => {
-	const res = (await ky
+): Promise<number | string> => {
+	const res = (await api
 		.post('https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search', {
 			json: {
 				asset: asset,
@@ -29,7 +37,7 @@ enum currenciesEnum {
 }
 export const getKoronaPayRates = async (
 	receivingCurrency: keyof typeof currenciesEnum
-) => {
+): Promise<number | string> => {
 	const searchParams = new URLSearchParams({
 		sendingCountryId: 'RUS',
 		sendingCurrencyId: '810',
@@ -40,7 +48,7 @@ export const getKoronaPayRates = async (
 		receivingMethod: 'cash',
 		paidNotificationEnabled: 'false',
 	})
-	const res = (await ky
+	const res = (await api
 		.get('https://koronapay.com/transfers/online/api/transfers/tariffs', {
 			headers: {
 				authority: 'koronapay.com',
@@ -65,8 +73,10 @@ export const getKoronaPayRates = async (
 	return res[0].exchangeRate
 }
 
-export const getCBRRates = async (currencies: ('USD' | 'GEL')[]) => {
-	const response = (await ky
+export const getCBRRates = async (
+	currencies: ('USD' | 'GEL')[]
+): Promise<(number | string)[]> => {
+	const response = (await api
 		.get('https://www.cbr-xml-daily.ru/daily_json.js', {})
 		.json()) as any
 
