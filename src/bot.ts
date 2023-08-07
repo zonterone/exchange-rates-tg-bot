@@ -55,7 +55,8 @@ bot.command(['start'], async (ctx) => {
 	)
 })
 
-bot.on(['message', '::bot_command'], async (ctx) => {
+bot.on(['msg:text', '::bot_command'], async (ctx) => {
+	console.log(ctx.message?.text);
 	if (
 		getRatesButtonText === ctx.message?.text ||
 		ctx.hasCommand(commandsList.rates.command)
@@ -73,7 +74,6 @@ bot.on(['message', '::bot_command'], async (ctx) => {
 		ctx.reply(calculateMessage, {
 			reply_markup: getInlineKeyboard(sum, currency.TO_GEL),
 		})
-		await ctx.answerCallbackQuery()
 	}
 })
 
