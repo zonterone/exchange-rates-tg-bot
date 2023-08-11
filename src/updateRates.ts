@@ -47,7 +47,6 @@ export const updateRates = async () => {
 		} as Rates
 
 		await db.push(`/rates`, result, false)
-		console.info('rates are updated')
 	} catch (error) {
 		console.error(error)
 	}

@@ -1,4 +1,5 @@
-import { Bot, InlineKeyboard, Keyboard } from 'grammy'
+import { Bot, InlineKeyboard, InlineQueryResultBuilder, Keyboard } from 'grammy'
+import { v4 as uuidv4 } from 'uuid'
 
 import 'dotenv/config'
 import { calculateRatesFromRub, calculateRatesToRub } from './calculateRates'
@@ -110,4 +111,14 @@ bot.callbackQuery(currency.FROM_USD, async (ctx) => {
 		reply_markup: getInlineKeyboard(sum, currency.FROM_USD),
 	})
 	await ctx.answerCallbackQuery()
+})
+
+bot.on('inline_query', async (ctx) => {
+	const ratesMessage = await getRates()
+	const result = InlineQueryResultBuilder.article(
+		uuidv4(),
+		'Send rates to chat'
+	).text(ratesMessage)
+
+	await ctx.answerInlineQuery([result])
 })
