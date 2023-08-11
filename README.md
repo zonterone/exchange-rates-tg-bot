@@ -31,6 +31,7 @@ Bot update rates every 30 minutes by polling binance, koronaPay and CBR rates, a
 docker run -d --name=exchange-rates-tg-bot \
 -e BOT_TOKEN=<your telegram api token> \
 --restart unless-stopped \
+--volume ~/.zt_exchange_bot/db:/usr/src/app/db \
 zonter/exchange-rates-tg-bot:latest
 ```
 
