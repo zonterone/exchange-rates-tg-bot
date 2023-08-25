@@ -39,6 +39,6 @@ zonter/exchange-rates-tg-bot:latest
 
 ## ENV variables
 
-| Variable                  | Required     | Description                                                         |
-| :------------------------ | :----------- | :------------------------------------------------------------------ |
-| `BOT_TOKEN`               | **Required** | Your Telegram API bot token                                         |
+| Variable    | Required     | Description                 |
+| :---------- | :----------- | :-------------------------- |
+| `BOT_TOKEN` | **Required** | Your Telegram API bot token |
