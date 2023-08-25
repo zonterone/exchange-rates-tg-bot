@@ -15,7 +15,7 @@ export interface Rates {
 export const updateRates = async () => {
 	try {
 		const binanceBuyRubToUsdt = async () =>
-			await getBinanceP2PRates('USDT', 'RUB', ['TinkoffNew', 'Tinkoff'], 'BUY')
+			await getBinanceP2PRates('USDT', 'RUB', ['RaiffeisenBank'], 'BUY')
 		const binanceSellUsdtToGel = async () =>
 			await getBinanceP2PRates('USDT', 'GEL', ['BankOfGeorgia'], 'SELL')
 		const binanceSellUsdtToUsd = async () =>
@@ -32,9 +32,11 @@ export const updateRates = async () => {
 			koronaUsdRate(),
 			CBRRates(),
 		])
+
 		const flatNormalizedResponses = responses
 			.flat()
 			.map((rate) => Number(rate))
+
 		const result = {
 			binanceBuyRubToUSDT: flatNormalizedResponses[0],
 			binanceSellUsdtToGEL: flatNormalizedResponses[1],
