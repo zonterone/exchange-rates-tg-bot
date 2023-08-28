@@ -63,3 +63,76 @@ export const getCBRRates = async (
 
 	return result
 }
+
+type OKXRatesArgType = { type: 'sell' | 'buy' } & ({
+	currency: 'rub',
+	paymentMethod: 'SBP Fast Bank Transfer'
+} | {
+	currency: 'gel',
+	paymentMethod: 'Bank of Georgia'
+} | {
+	currency: 'usd',
+	paymentMethod: 'Bank of Georgia'
+})
+
+export const getOKXRates = async (args: OKXRatesArgType) => {
+	const searchParams = new URLSearchParams({
+		quoteCurrency: args.currency,
+		baseCurrency: 'usdt',
+		paymentMethod: args.paymentMethod,
+	})
+	const response = (await api
+		.get('https://www.okx.com/v3/c2c/tradingOrders/books', { searchParams: searchParams, })
+		.json()) as any
+
+	const bestBuy = Math.min(...response.data.sell.map((item: any) => Number(item.price)))
+	const bestSell = Math.max(...response.data.buy.map((item: any) => Number(item.price)))
+
+	return args.type === 'buy' ? bestBuy : bestSell
+
+}
+
+enum SideEnum {
+	'sell',
+	'buy',
+}
+
+enum PaymentTypeEnum {
+	'SBP Fast Bank Transfer' = 14,
+	'Bank of Georgia' = 11,
+}
+
+type ByBitRatesArgType = { type: 'sell' | 'buy' } & ({
+	currency: 'RUB'
+	paymentMethod: 'SBP Fast Bank Transfer'
+} | {
+	currency: 'GEL'
+	paymentMethod: 'Bank of Georgia'
+} |
+{
+	currency: 'USD'
+	paymentMethod: 'Bank of Georgia'
+})
+
+export const getByBitRates = async (args: ByBitRatesArgType) => {
+
+	const response = (await api
+		.post('https://api2.bybit.com/fiat/otc/item/online', {
+			json: {
+				tokenId: "USDT",
+				currencyId: args.currency,
+				payment: [
+					`${PaymentTypeEnum[args.paymentMethod]}`
+				],
+				side: `${SideEnum[args.type]}`,
+				size: "1",
+				page: "1",
+				amount: "",
+				authMaker: false,
+				canTrade: false
+			}
+		})
+		.json()) as any
+
+	return response.result.items[0].price
+}
