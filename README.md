@@ -1,6 +1,6 @@
 
 # Simple telegram exchange rates Bot
-Bot update rates every 30 minutes by polling binance, koronaPay and CBR rates, and saves it to db.json file.
+Bot update rates every 30 minutes by polling koronaPay and CBR rates, and saves it to db.json file.
 
 ## Prerequisites
 

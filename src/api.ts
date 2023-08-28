@@ -8,29 +8,6 @@ const api = ky.create({
 	timeout: 60000,
 })
 
-export const getBinanceP2PRates = async (
-	asset: string,
-	fiat: string,
-	payTypes: string[],
-	tradeType: 'BUY' | 'SELL'
-): Promise<number | string> => {
-	const res = (await api
-		.post('https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search', {
-			json: {
-				asset: asset,
-				fiat: fiat,
-				merchantCheck: 'False',
-				page: 1,
-				payTypes: payTypes,
-				rows: 1,
-				tradeType: tradeType,
-			},
-		})
-		.json()) as any
-
-	return res.data[0].adv.price
-}
-
 enum currenciesEnum {
 	'GEL' = '981',
 	'USD' = '840',

@@ -7,16 +7,9 @@ export const calculateRatesFromRub = async (
 	sum: number
 ) => {
 	const rates = (await db.getData(`/rates`)) as Rates
-	const rubToCurrencyInBinance =
-		rates.binanceBuyRubToUSDT / rates[`binanceSellUsdtTo${currency}`]
 
 	return `CBR
 RUB->${currency}: ${sum}RUB=${(sum / rates[`CBRRate${currency}`]).toFixed(
-		2
-	)}${currency}
--------------------------
-Binance
-RUB->USDT->${currency}: ${sum}RUB=${(sum / rubToCurrencyInBinance).toFixed(
 		2
 	)}${currency}
 -------------------------
@@ -35,16 +28,9 @@ export const calculateRatesToRub = async (
 	sum: number
 ) => {
 	const rates = (await db.getData(`/rates`)) as Rates
-	const rubToCurrencyInBinance =
-		rates.binanceBuyRubToUSDT / rates[`binanceSellUsdtTo${currency}`]
 
 	return `CBR
 RUB->${currency}: ${(sum * rates[`CBRRate${currency}`]).toFixed(
-		2
-	)}RUB=${sum}${currency}
--------------------------
-Binance
-RUB->USDT->${currency}: ${(sum * rubToCurrencyInBinance).toFixed(
 		2
 	)}RUB=${sum}${currency}
 -------------------------
