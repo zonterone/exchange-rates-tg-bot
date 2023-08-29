@@ -1,4 +1,4 @@
-import { getByBitRates, getCBRRates, getKoronaPayRates, getOKXRates } from './api'
+import { getByBitRates, getCBRRates, getKoronaPayRates } from './api'
 import { db } from './db'
 
 export interface Rates {
@@ -6,9 +6,6 @@ export interface Rates {
 	koronaRateUSD: number
 	CBRRateUSD: number
 	CBRRateGEL: number
-	OKXBuyRUBToUsdt: number
-	OKXSellUsdtToGEL: number
-	OKXSellUsdtToUSD: number
 	ByBitBuyRUBToUsdt: number
 	ByBitSellUsdtToGEL: number
 	ByBitSellUsdtToUSD: number
@@ -20,8 +17,6 @@ export const updateRates = async () => {
 		const koronaGelRate = async () => await getKoronaPayRates('GEL')
 		const koronaUsdRate = async () => await getKoronaPayRates('USD')
 		const CBRRates = async () => await getCBRRates(['USD', 'GEL'])
-		const OKXBuyRubToUsdt = async () => await getOKXRates({ currency: 'rub', paymentMethod: 'SBP Fast Bank Transfer', type: 'buy' })
-		const OKXSellUsdtToGel = async () => await getOKXRates({ currency: 'gel', paymentMethod: 'Bank of Georgia', type: 'sell' })
 		const ByBitBuyRubToUsdt = async () => await getByBitRates({ currency: 'RUB', paymentMethod: 'SBP Fast Bank Transfer', type: 'buy' })
 		const ByBitSellUsdtToGel = async () => await getByBitRates({ currency: 'GEL', paymentMethod: 'Bank of Georgia', type: 'sell' })
 		const ByBitSellUsdtToUsd = async () => await getByBitRates({ currency: 'USD', paymentMethod: 'Bank of Georgia', type: 'sell' })
@@ -30,8 +25,6 @@ export const updateRates = async () => {
 			koronaGelRate(),
 			koronaUsdRate(),
 			CBRRates(),
-			OKXBuyRubToUsdt(),
-			OKXSellUsdtToGel(),
 			ByBitBuyRubToUsdt(),
 			ByBitSellUsdtToGel(),
 			ByBitSellUsdtToUsd(),
@@ -46,12 +39,9 @@ export const updateRates = async () => {
 			koronaRateUSD: flatNormalizedResponses[1],
 			CBRRateUSD: flatNormalizedResponses[2],
 			CBRRateGEL: flatNormalizedResponses[3],
-			OKXBuyRUBToUsdt: flatNormalizedResponses[4],
-			OKXSellUsdtToGEL: flatNormalizedResponses[5],
-			OKXSellUsdtToUSD: -1,
-			ByBitBuyRUBToUsdt: flatNormalizedResponses[6],
-			ByBitSellUsdtToGEL: flatNormalizedResponses[7],
-			ByBitSellUsdtToUSD: flatNormalizedResponses[8],
+			ByBitBuyRUBToUsdt: flatNormalizedResponses[4],
+			ByBitSellUsdtToGEL: flatNormalizedResponses[5],
+			ByBitSellUsdtToUSD: flatNormalizedResponses[6],
 			updatedDate: new Date().getTime(),
 		}
 

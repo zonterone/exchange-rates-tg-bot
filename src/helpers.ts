@@ -5,7 +5,7 @@ export const getTimeDiffInMinutes = (date: number) => {
 }
 
 type Item = {
-  label: 'ByBit' | 'OKX' | 'KoronaPay',
+  label: 'ByBit' | 'KoronaPay',
   value: number
 }
 export const findBestRateLabel = {
