@@ -32,6 +32,7 @@ RUB->USD: 1USD=${rates.koronaRateUSD.toFixed(2)}RUB ${bestRubToUsdPlatform === '
 ByBit
 Buy: 1USDT=${rates.ByBitBuyRUBToUsdt.toFixed(2)}RUB
 Sell: 1USDT=${rates.ByBitSellUsdtToGEL.toFixed(2)}GEL
+Sell: 1USDT=${rates.ByBitSellUsdtToUSD.toFixed(2)}USD
 RUB->USDT->GEL: 1GEL=${rubToGelInByBit.toFixed(2)}RUB ${bestRubToGelPlatform === 'ByBit' ? '👍' : ''}
 RUB->USDT->USD: 1USD=${rubToUsdInByBit.toFixed(2)}RUB ${bestRubToUsdPlatform === 'ByBit' ? '👍' : ''}
 -------------------------
