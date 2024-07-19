@@ -1,21 +1,28 @@
-FROM node:current-alpine
+FROM node:current-alpine AS base
 
-RUN mkdir -p /usr/src/app/buildDependencies
+FROM base AS deps
+WORKDIR /app
 
-WORKDIR /usr/src/app/
+COPY package.json package-lock.json* ./
+RUN npm ci
 
-COPY package.json yarn.lock ./buildDependencies/
+FROM base AS builder
+WORKDIR /app
 
-RUN yarn install --cwd ./buildDependencies/
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 
-COPY . ./buildDependencies/
+RUN npm run build
 
-RUN yarn --cwd ./buildDependencies/ run build
+FROM base AS runner
+WORKDIR /app
 
-RUN mv ./buildDependencies/dist/* ./ && rm -rf ./buildDependencies
+ENV NODE_ENV production
+
+COPY --from=builder /app/dist ./
 
 RUN mkdir -p ./db
 
 VOLUME /usr/src/app/db
 
-ENTRYPOINT ["node", "main.js"]
+CMD ["node", "main.js"]
