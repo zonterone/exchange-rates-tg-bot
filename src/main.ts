@@ -1,9 +1,8 @@
 import { CronJob } from "cron";
-import { GrammyError, HttpError } from "grammy";
-import { bot } from "./bot";
+import { GrammyError, HttpError } from "grammy/web";
+import { bot, setupBotCommands } from "./bot";
 import { updateRates } from "./updateRates";
 
-bot.start();
 bot.catch((err) => {
   const ctx = err.ctx;
   console.error(`Error while handling update ${ctx.update.update_id}:`);
@@ -16,22 +15,41 @@ bot.catch((err) => {
     console.error("Unknown error:", e);
   }
 });
-console.info("Bot started");
 
 const updateRatesCron = new CronJob("*/30 * * * *", async () => {
   await updateRates();
 });
 
-// initial update
-updateRates();
-updateRatesCron.start();
-console.info("Update rates cron started");
+const stop = () => {
+  void bot.stop();
+  updateRatesCron.stop();
+};
 
-process.once("SIGINT", () => {
-  bot.stop();
+const main = async () => {
+  await updateRates();
+  await setupBotCommands();
+
+  updateRatesCron.start();
+  console.info("Update rates cron started");
+
+  bot
+    .start({
+      onStart: () => {
+        console.info("Bot started");
+      },
+    })
+    .catch((error) => {
+      console.error("Bot startup failed:", error);
+      updateRatesCron.stop();
+      process.exitCode = 1;
+    });
+};
+
+process.once("SIGINT", stop);
+process.once("SIGTERM", stop);
+
+main().catch((error) => {
+  console.error("Startup failed:", error);
   updateRatesCron.stop();
-});
-process.once("SIGTERM", () => {
-  bot.stop();
-  updateRatesCron.stop();
+  process.exitCode = 1;
 });

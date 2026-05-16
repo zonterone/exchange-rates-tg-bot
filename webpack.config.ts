@@ -2,18 +2,20 @@ import * as path from "path";
 import * as webpack from "webpack";
 import NodemonPlugin from "nodemon-webpack-plugin";
 import TerserPlugin from "terser-webpack-plugin";
+import { fileURLToPath } from "url";
 
 const { NODE_ENV = "production" } = process.env;
 
 const isDev = NODE_ENV === "development";
+const dir = path.dirname(fileURLToPath(import.meta.url));
 
 const config: webpack.Configuration = {
   mode: isDev ? "development" : "production",
   target: "node",
   entry: { main: "./src/main.ts" },
   output: {
-    filename: "[name].js",
-    path: path.resolve(__dirname, "dist"),
+    filename: "[name].cjs",
+    path: path.resolve(dir, "dist"),
   },
   resolve: {
     extensions: [".ts", ".js"],

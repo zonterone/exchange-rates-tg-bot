@@ -3,7 +3,7 @@ import {
   InlineKeyboard,
   InlineQueryResultBuilder,
   Keyboard,
-} from "grammy";
+} from "grammy/web";
 import { v4 as uuidv4 } from "uuid";
 
 import "dotenv/config";
@@ -11,7 +11,13 @@ import { calculateRatesFromRub, calculateRatesToRub } from "./calculateRates";
 import { db } from "./db";
 import { getRates } from "./getRates";
 
-export const bot = new Bot(process.env.BOT_TOKEN as string);
+const token = process.env["BOT_TOKEN"];
+
+if (!token) {
+  throw new Error("BOT_TOKEN is required");
+}
+
+export const bot = new Bot(token);
 
 const getRatesButtonText = "Get rates 💸";
 const keyboard = new Keyboard()
@@ -51,12 +57,35 @@ const commandsList = {
   rates: { command: "rates", description: "Get rates" },
 };
 
-bot.api.setMyCommands(Object.values(commandsList));
+export const setupBotCommands = () =>
+  bot.api.setMyCommands(Object.values(commandsList));
+
+type UserContext = {
+  chat?: { id: number } | undefined;
+  from?: { id: number } | undefined;
+};
+
+const getUserPath = (ctx: UserContext) => {
+  const chat = ctx.chat?.id ?? ctx.from?.id;
+  const user = ctx.from?.id ?? ctx.chat?.id;
+
+  if (!chat || !user) throw new Error("chat or user id is missing");
+
+  return `/users/${chat}/${user}`;
+};
+
+const getLastSum = async (ctx: UserContext) => {
+  const path = `${getUserPath(ctx)}/lastSumToCalculate`;
+  if (!(await db.exists(path))) return null;
+
+  const sum = Number(await db.getData(path));
+  return Number.isFinite(sum) ? sum : null;
+};
 
 bot.command(["start"], async (ctx) => {
-  await db.push(`/users/${ctx.message?.chat.id}`, {}, false);
-  ctx.reply(
-    `Hello! This bot watch current exchange rates for Binance and KoronaPay in Georgia direction. To get the rates click the "${getRatesButtonText}".`,
+  await db.push(getUserPath(ctx), {}, false);
+  await ctx.reply(
+    `Hello! This bot watches current CBR and KoronaPay exchange rates in Georgia direction. To get the rates click the "${getRatesButtonText}".`,
     { reply_markup: keyboard }
   );
 });
@@ -67,23 +96,27 @@ bot.on(["msg:text", "::bot_command"], async (ctx) => {
     ctx.hasCommand(commandsList.rates.command)
   ) {
     const ratesMessage = await getRates();
-    ctx.reply(ratesMessage);
-  } else if (!isNaN(Number(ctx.message?.text))) {
+    await ctx.reply(ratesMessage);
+    return;
+  }
+
+  if (!isNaN(Number(ctx.message?.text))) {
     const sum = Number(ctx.message?.text);
-    await db.push(
-      `/users/${ctx.message?.chat.id}`,
-      { lastSumToCalculate: sum },
-      false
-    );
+    await db.push(getUserPath(ctx), { lastSumToCalculate: sum }, false);
     const calculateMessage = await calculateRatesFromRub("GEL", sum);
-    ctx.reply(calculateMessage, {
+    await ctx.reply(calculateMessage, {
       reply_markup: getInlineKeyboard(sum, currency.TO_GEL),
     });
   }
 });
 
 bot.callbackQuery(currency.TO_GEL, async (ctx) => {
-  const sum = await db.getData(`/users/${ctx?.chat?.id}/lastSumToCalculate`);
+  const sum = await getLastSum(ctx);
+  if (sum === null) {
+    await ctx.answerCallbackQuery({ text: "Send sum first" });
+    return;
+  }
+
   const calculateMessage = await calculateRatesFromRub("GEL", sum);
   await ctx.editMessageText(calculateMessage, {
     reply_markup: getInlineKeyboard(sum, currency.TO_GEL),
@@ -92,7 +125,12 @@ bot.callbackQuery(currency.TO_GEL, async (ctx) => {
 });
 
 bot.callbackQuery(currency.TO_USD, async (ctx) => {
-  const sum = await db.getData(`/users/${ctx?.chat?.id}/lastSumToCalculate`);
+  const sum = await getLastSum(ctx);
+  if (sum === null) {
+    await ctx.answerCallbackQuery({ text: "Send sum first" });
+    return;
+  }
+
   const calculateMessage = await calculateRatesFromRub("USD", sum);
   await ctx.editMessageText(calculateMessage, {
     reply_markup: getInlineKeyboard(sum, currency.TO_USD),
@@ -101,7 +139,12 @@ bot.callbackQuery(currency.TO_USD, async (ctx) => {
 });
 
 bot.callbackQuery(currency.FROM_GEL, async (ctx) => {
-  const sum = await db.getData(`/users/${ctx?.chat?.id}/lastSumToCalculate`);
+  const sum = await getLastSum(ctx);
+  if (sum === null) {
+    await ctx.answerCallbackQuery({ text: "Send sum first" });
+    return;
+  }
+
   const calculateMessage = await calculateRatesToRub("GEL", sum);
   await ctx.editMessageText(calculateMessage, {
     reply_markup: getInlineKeyboard(sum, currency.FROM_GEL),
@@ -110,7 +153,12 @@ bot.callbackQuery(currency.FROM_GEL, async (ctx) => {
 });
 
 bot.callbackQuery(currency.FROM_USD, async (ctx) => {
-  const sum = await db.getData(`/users/${ctx?.chat?.id}/lastSumToCalculate`);
+  const sum = await getLastSum(ctx);
+  if (sum === null) {
+    await ctx.answerCallbackQuery({ text: "Send sum first" });
+    return;
+  }
+
   const calculateMessage = await calculateRatesToRub("USD", sum);
   await ctx.editMessageText(calculateMessage, {
     reply_markup: getInlineKeyboard(sum, currency.FROM_USD),

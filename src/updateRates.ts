@@ -1,67 +1,103 @@
-import { getByBitRates, getCBRRates, getKoronaPayRates } from "./api";
+import { getCBRRates, getKoronaPayRates } from "./api";
 import { db } from "./db";
+import { isPositiveRate } from "./helpers";
 
-export interface Rates {
+export type Rates = {
   koronaRateGEL: number;
   koronaRateUSD: number;
   CBRRateUSD: number;
   CBRRateGEL: number;
-  ByBitBuyRUBToUsdt: number;
-  ByBitSellUsdtToGEL: number;
-  ByBitSellUsdtToUSD: number;
   updatedDate: number;
-}
+};
 
-export const updateRates = async () => {
+type Providers = {
+  koronaGelRate: () => Promise<number>;
+  koronaUsdRate: () => Promise<number>;
+  CBRRates: () => Promise<number[]>;
+};
+
+const providers: Providers = {
+  koronaGelRate: () => getKoronaPayRates("GEL"),
+  koronaUsdRate: () => getKoronaPayRates("USD"),
+  CBRRates: () => getCBRRates(["USD", "GEL"]),
+};
+
+export const getStoredRates = async () => {
+  if (!(await db.exists("/rates"))) return null;
+  return (await db.getData("/rates")) as Rates;
+};
+
+const normalize = (rate: unknown, fallback: number) => {
+  const value = Number(rate);
+  return isPositiveRate(value) ? value : fallback;
+};
+
+const getSettledRate = (
+  result: PromiseSettledResult<number>,
+  fallback: number
+) => {
+  if (result.status === "rejected") {
+    console.error(result.reason);
+    return fallback;
+  }
+
+  return normalize(result.value, fallback);
+};
+
+const getSettledCBRRate = (
+  result: PromiseSettledResult<number[]>,
+  index: number,
+  fallback: number
+) => {
+  if (result.status === "rejected") {
+    console.error(result.reason);
+    return fallback;
+  }
+
+  return normalize(result.value[index], fallback);
+};
+
+export const updateRates = async (ratesProviders = providers) => {
   try {
-    const koronaGelRate = async () => await getKoronaPayRates("GEL");
-    const koronaUsdRate = async () => await getKoronaPayRates("USD");
-    const CBRRates = async () => await getCBRRates(["USD", "GEL"]);
-    const ByBitBuyRubToUsdt = async () =>
-      await getByBitRates({
-        currency: "RUB",
-        paymentMethod: "SBP Fast Bank Transfer",
-        type: "buy",
-      });
-    const ByBitSellUsdtToGel = async () =>
-      await getByBitRates({
-        currency: "GEL",
-        paymentMethod: "Bank of Georgia",
-        type: "sell",
-      });
-    const ByBitSellUsdtToUsd = async () =>
-      await getByBitRates({
-        currency: "USD",
-        paymentMethod: "Bank of Georgia",
-        type: "sell",
-      });
+    const fallback = await getStoredRates();
+    const responses = (await Promise.allSettled([
+      ratesProviders.koronaGelRate(),
+      ratesProviders.koronaUsdRate(),
+      ratesProviders.CBRRates(),
+    ])) as [
+      PromiseSettledResult<number>,
+      PromiseSettledResult<number>,
+      PromiseSettledResult<number[]>
+    ];
 
-    const responses = await Promise.all([
-      koronaGelRate(),
-      koronaUsdRate(),
-      CBRRates(),
-      ByBitBuyRubToUsdt(),
-      ByBitSellUsdtToGel(),
-      ByBitSellUsdtToUsd(),
-    ]);
-
-    const flatNormalizedResponses = responses
-      .flat()
-      .map((rate) => Number(rate));
+    const [koronaGelRate, koronaUsdRate, CBRRates] = responses;
 
     const result: Rates = {
-      koronaRateGEL: flatNormalizedResponses[0],
-      koronaRateUSD: flatNormalizedResponses[1],
-      CBRRateUSD: flatNormalizedResponses[2],
-      CBRRateGEL: flatNormalizedResponses[3],
-      ByBitBuyRUBToUsdt: flatNormalizedResponses[4],
-      ByBitSellUsdtToGEL: flatNormalizedResponses[5],
-      ByBitSellUsdtToUSD: flatNormalizedResponses[6],
+      koronaRateGEL: getSettledRate(
+        koronaGelRate,
+        fallback?.koronaRateGEL ?? -1
+      ),
+      koronaRateUSD: getSettledRate(
+        koronaUsdRate,
+        fallback?.koronaRateUSD ?? -1
+      ),
+      CBRRateUSD: getSettledCBRRate(
+        CBRRates,
+        0,
+        fallback?.CBRRateUSD ?? -1
+      ),
+      CBRRateGEL: getSettledCBRRate(
+        CBRRates,
+        1,
+        fallback?.CBRRateGEL ?? -1
+      ),
       updatedDate: new Date().getTime(),
     };
 
-    await db.push(`/rates`, result, false);
+    await db.push("/rates", result, false);
+    return result;
   } catch (error) {
     console.error(error);
+    return null;
   }
 };

@@ -1,36 +1,39 @@
 {
   "name": "exchange-rates-bot",
   "version": "0.0.1",
+  "type": "module",
   "author": "https://github.com/zonterone",
   "repository": {
     "url": "https://github.com/zonterone/exchange-rates-tg-bot.git"
   },
   "license": "MIT",
   "dependencies": {
-    "cron": "^3.1.7",
-    "dotenv": "^16.4.5",
-    "grammy": "^1.27.0",
-    "ky": "^1.4.0",
-    "node-json-db": "^2.3.0",
-    "uuid": "^10.0.0"
+    "cron": "^4.4.0",
+    "dotenv": "^17.4.2",
+    "grammy": "^1.43.0",
+    "ky": "^2.0.2",
+    "node-json-db": "^2.6.0",
+    "uuid": "^14.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@tsconfig/recommended": "^1.0.7",
-    "@types/node": "^20.14.11",
-    "@types/uuid": "^10.0.0",
+    "@tsconfig/recommended": "^1.0.13",
+    "@types/node": "^25.7.0",
     "@types/webpack": "^5.28.5",
     "nodemon-webpack-plugin": "^4.8.2",
-    "terser-webpack-plugin": "^5.3.10",
-    "ts-loader": "^9.5.1",
+    "terser-webpack-plugin": "^5.6.0",
+    "ts-loader": "^9.5.7",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.3",
-    "webpack": "^5.93.0",
-    "webpack-cli": "^5.1.4"
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "webpack": "^5.106.2",
+    "webpack-cli": "^7.0.2"
   },
   "scripts": {
     "build": "webpack",
     "build:dev": "NODE_ENV=development webpack",
-    "start": "webpack && node -r dotenv/config ./dist/main.js",
-    "start:dev": "NODE_ENV=development webpack --watch"
+    "start": "webpack && node -r dotenv/config ./dist/main.cjs",
+    "start:dev": "NODE_ENV=development webpack --watch",
+    "test": "node --import tsx --test test/*.test.js"
   }
 }

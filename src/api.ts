@@ -1,4 +1,5 @@
 import ky from "ky";
+import { z } from "zod";
 
 const api = ky.create({
   retry: {
@@ -12,9 +13,17 @@ enum currenciesEnum {
   "GEL" = "981",
   "USD" = "840",
 }
+
+const failedRate = -1;
+const rateSchema = z.coerce.number().positive();
+const koronaSchema = z.array(z.object({ exchangeRate: rateSchema })).min(1);
+const cbrSchema = z.object({
+  Valute: z.record(z.string(), z.object({ Value: rateSchema })),
+});
+
 export const getKoronaPayRates = async (
   receivingCurrency: keyof typeof currenciesEnum
-): Promise<number | string> => {
+): Promise<number> => {
   const searchParams = new URLSearchParams({
     sendingCountryId: "RUS",
     sendingCurrencyId: "810",
@@ -25,7 +34,7 @@ export const getKoronaPayRates = async (
     receivingMethod: "cash",
     paidNotificationEnabled: "false",
   });
-  const res = (await api
+  const res = await api
     .get("https://koronapay.com/transfers/online/api/transfers/tariffs", {
       searchParams: searchParams,
       headers: {
@@ -38,66 +47,27 @@ export const getKoronaPayRates = async (
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
       },
     })
-    .json()) as any;
+    .json<unknown>();
 
-  return res[0]?.exchangeRate ?? -1;
+  const result = koronaSchema.safeParse(res);
+  if (!result.success) return failedRate;
+
+  return result.data[0]?.exchangeRate ?? failedRate;
 };
 
 export const getCBRRates = async (
   currencies: ("USD" | "GEL")[]
-): Promise<(number | string)[]> => {
-  const response = (await api
+): Promise<number[]> => {
+  const response = await api
     .get("https://www.cbr-xml-daily.ru/daily_json.js", {})
-    .json()) as any;
+    .json<unknown>();
+
+  const parsed = cbrSchema.safeParse(response);
+  if (!parsed.success) return currencies.map(() => failedRate);
 
   const result = currencies.map((currency) => {
-    return response.Valute[currency].Value;
+    return parsed.data.Valute[currency]?.Value ?? failedRate;
   });
 
   return result;
-};
-
-enum SideEnum {
-  "sell",
-  "buy",
-}
-
-enum PaymentTypeEnum {
-  "SBP Fast Bank Transfer" = 14,
-  "Bank of Georgia" = 11,
-}
-
-type ByBitRatesArgType = { type: "sell" | "buy" } & (
-  | {
-      currency: "RUB";
-      paymentMethod: "SBP Fast Bank Transfer";
-    }
-  | {
-      currency: "GEL";
-      paymentMethod: "Bank of Georgia";
-    }
-  | {
-      currency: "USD";
-      paymentMethod: "Bank of Georgia";
-    }
-);
-
-export const getByBitRates = async (args: ByBitRatesArgType) => {
-  const response = (await api
-    .post("https://api2.bybit.com/fiat/otc/item/online", {
-      json: {
-        tokenId: "USDT",
-        currencyId: args.currency,
-        payment: [`${PaymentTypeEnum[args.paymentMethod]}`],
-        side: `${SideEnum[args.type]}`,
-        size: "1",
-        page: "1",
-        amount: "",
-        authMaker: false,
-        canTrade: false,
-      },
-    })
-    .json()) as any;
-
-  return response.result.items[0]?.price ?? -1;
 };

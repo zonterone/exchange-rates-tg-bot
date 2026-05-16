@@ -23,6 +23,6 @@ COPY --from=builder /app/dist ./
 
 RUN mkdir -p ./db
 
-VOLUME /usr/src/app/db
+VOLUME /app/db
 
-CMD ["node", "main.js"]
+CMD ["node", "main.cjs"]

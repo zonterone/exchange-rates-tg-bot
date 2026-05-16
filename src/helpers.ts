@@ -4,13 +4,9 @@ export const getTimeDiffInMinutes = (date: number) => {
   return Math.round(diff / 1000 / 60);
 };
 
-type Item = {
-  label: "ByBit" | "KoronaPay";
-  value: number;
-};
-export const findBestRateLabel = {
-  findMin: (values: Item[]) =>
-    values.sort((a, b) => a.value - b.value)[0].label,
-  findMax: (values: Item[]) =>
-    values.sort((a, b) => b.value - a.value)[0].label,
-};
+const isValidRate = (value: number) => Number.isFinite(value) && value > 0;
+
+export const formatRate = (value: number) =>
+  isValidRate(value) ? value.toFixed(2) : "❌";
+
+export const isPositiveRate = isValidRate;

@@ -1,6 +1,6 @@
 
 # Simple telegram exchange rates Bot
-Bot update rates every 30 minutes by polling ByBit, koronaPay and CBR rates, and saves it to db.json file.
+Bot update rates every 30 minutes by polling KoronaPay and CBR rates, and saves it to db.json file.
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ Bot update rates every 30 minutes by polling ByBit, koronaPay and CBR rates, and
 docker run -d --name=exchange-rates-tg-bot \
 -e BOT_TOKEN=<your telegram api token> \
 --restart unless-stopped \
---volume ~/.zt_exchange_bot/db:/usr/src/app/db \
+--volume ~/.zt_exchange_bot/db:/app/db \
 zonter/exchange-rates-tg-bot:latest
 ```
 
