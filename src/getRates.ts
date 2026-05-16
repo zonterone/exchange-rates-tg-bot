@@ -1,4 +1,5 @@
-import { formatRate, getTimeDiffInMinutes } from "./helpers";
+import { currencySymbols, getTimeDiffInMinutes } from "./helpers";
+import { formatRateWithInsights } from "./trend";
 import { getStoredRates } from "./updateRates";
 
 export const getRates = async () => {
@@ -7,12 +8,32 @@ export const getRates = async () => {
   if (!rates) return "Rates are not loaded yet. Try again later.";
 
   return `CBR
-RUB->GEL: 1GEL=${formatRate(rates.CBRRateGEL)}RUB
-RUB->USD: 1USD=${formatRate(rates.CBRRateUSD)}RUB
+${currencySymbols.RUB}->${currencySymbols.GEL}: 1${currencySymbols.GEL}=${formatRateWithInsights(
+    rates.CBRRateGEL,
+    rates.history,
+    "CBRRateGEL",
+    rates.updatedDate
+  )}
+${currencySymbols.RUB}->${currencySymbols.USD}: 1${currencySymbols.USD}=${formatRateWithInsights(
+    rates.CBRRateUSD,
+    rates.history,
+    "CBRRateUSD",
+    rates.updatedDate
+  )}
 -------------------------
 KoronaPay
-RUB->GEL: 1GEL=${formatRate(rates.koronaRateGEL)}RUB
-RUB->USD: 1USD=${formatRate(rates.koronaRateUSD)}RUB
+${currencySymbols.RUB}->${currencySymbols.GEL}: 1${currencySymbols.GEL}=${formatRateWithInsights(
+    rates.koronaRateGEL,
+    rates.history,
+    "koronaRateGEL",
+    rates.updatedDate
+  )}
+${currencySymbols.RUB}->${currencySymbols.USD}: 1${currencySymbols.USD}=${formatRateWithInsights(
+    rates.koronaRateUSD,
+    rates.history,
+    "koronaRateUSD",
+    rates.updatedDate
+  )}
 -------------------------
 Last update: ${getTimeDiffInMinutes(rates.updatedDate)} minutes ago
 Rates are usually updated every 30 minutes

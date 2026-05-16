@@ -18,8 +18,14 @@ const { calculateRatesFromRub, calculateRatesToRub } = await import(
 const { db } = await import("../src/db");
 const { getRates } = await import("../src/getRates");
 const { formatRate, isPositiveRate } = await import("../src/helpers");
+const {
+  formatRateInsightsSuffix,
+  formatRateWithInsights,
+  pruneRateHistory,
+} = await import("../src/trend");
 const { getStoredRates, updateRates } = await import("../src/updateRates");
 
+const hour = 60 * 60 * 1000;
 const rates = {
   koronaRateGEL: 40,
   koronaRateUSD: 95,
@@ -27,6 +33,13 @@ const rates = {
   CBRRateGEL: 35,
   updatedDate: Date.now(),
 };
+
+const weeklyUsdHistory = (now) =>
+  Array.from({ length: 24 }, (_, index) => ({
+    key: "CBRRateUSD",
+    value: 91.5,
+    updatedDate: now - 7 * 24 * hour + index * 30 * 60 * 1000,
+  }));
 
 beforeEach(async () => {
   db.resetData({});
@@ -86,21 +99,89 @@ test("formats only positive finite rates as numbers", () => {
   assert.equal(isPositiveRate(0), false);
 });
 
+test("formats ₽ trend from sliding windows and 7d average", () => {
+  const now = Date.UTC(2026, 0, 8, 12);
+  const history = [
+    ...weeklyUsdHistory(now),
+    {
+      key: "CBRRateUSD",
+      value: 90,
+      updatedDate: now - 24 * hour - 30 * 60 * 1000,
+    },
+    {
+      key: "CBRRateUSD",
+      value: 91,
+      updatedDate: now - 24 * hour + 30 * 60 * 1000,
+    },
+    { key: "CBRRateUSD", value: 92, updatedDate: now - 30 * 60 * 1000 },
+    { key: "CBRRateUSD", value: 93, updatedDate: now },
+  ];
+
+  assert.equal(
+    formatRateWithInsights(93, history, "CBRRateUSD", now),
+    "93.00₽ ↑ +2.50₽ over 24h, above 7d avg by 1.50₽"
+  );
+  assert.equal(
+    formatRateInsightsSuffix(history, "CBRRateUSD", 93, now),
+    " (rate ↑ +2.50₽ over 24h, above 7d avg by 1.50₽)"
+  );
+});
+
+test("does not show insights for stale fallback rates", () => {
+  const now = Date.UTC(2026, 0, 8, 12);
+  const history = [
+    { key: "CBRRateUSD", value: 90, updatedDate: now - 24 * hour },
+    { key: "CBRRateUSD", value: 92, updatedDate: now - hour },
+  ];
+
+  assert.equal(
+    formatRateWithInsights(93, history, "CBRRateUSD", now),
+    "93.00₽"
+  );
+});
+
+test("formats flat trend over available history when 24h window is missing", () => {
+  const now = Date.UTC(2026, 0, 8, 12);
+  const history = [
+    { key: "CBRRateGEL", value: 35, updatedDate: now - 6 * hour },
+    { key: "CBRRateGEL", value: 35.02, updatedDate: now },
+  ];
+
+  assert.equal(
+    formatRateWithInsights(35.02, history, "CBRRateGEL", now),
+    "35.02₽ ≈ flat over 6h"
+  );
+});
+
+test("keeps only recent valid rate history points", () => {
+  const now = Date.UTC(2026, 0, 8, 12);
+  const history = [
+    { key: "CBRRateUSD", value: 90, updatedDate: now - 9 * 24 * hour },
+    { key: "CBRRateUSD", value: 0, updatedDate: now },
+    { key: "CBRRateUSD", value: 91, updatedDate: now + hour },
+    { key: "CBRRateUSD", value: 92, updatedDate: now },
+  ];
+
+  assert.deepEqual(pruneRateHistory(history, now), [
+    { key: "CBRRateUSD", value: 92, updatedDate: now },
+  ]);
+});
+
 test("rate messages contain only CBR and KoronaPay rates", async () => {
   await db.push("/rates", rates, true);
 
   const message = await getRates();
-  assert.match(message, /CBR\nRUB->GEL: 1GEL=35\.00RUB/);
-  assert.match(message, /KoronaPay\nRUB->GEL: 1GEL=40\.00RUB/);
+  assert.match(message, /CBR\n₽->₾: 1₾=35\.00₽/);
+  assert.match(message, /KoronaPay\n₽->₾: 1₾=40\.00₽/);
   assert.doesNotMatch(message, /ByBit|USDT|👍/);
 
   const fromRub = await calculateRatesFromRub("GEL", 1000);
-  assert.match(fromRub, /KoronaPay\nRUB->GEL: 1000RUB=25\.00GEL/);
+  assert.match(fromRub, /KoronaPay\n₽->₾: 1000₽=25\.00₾/);
   assert.doesNotMatch(fromRub, /ByBit|USDT|👍/);
 
   const toRub = await calculateRatesToRub("USD", 10);
-  assert.match(toRub, /CBR\nRUB->USD: 900\.00RUB=10USD/);
-  assert.match(toRub, /KoronaPay\nRUB->USD: 950\.00RUB=10USD/);
+  assert.match(toRub, /CBR\n₽->\$: 900\.00₽=10\$/);
+  assert.match(toRub, /KoronaPay\n₽->\$: 950\.00₽=10\$/);
 });
 
 test("rate calculations render invalid provider values as unavailable", async () => {
@@ -114,13 +195,61 @@ test("rate calculations render invalid provider values as unavailable", async ()
     true
   );
 
-  assert.match(await getRates(), /RUB->GEL: 1GEL=❌RUB/);
-  assert.match(await calculateRatesFromRub("GEL", 1000), /1000RUB=❌GEL/);
-  assert.match(await calculateRatesToRub("GEL", 1000), /❌RUB=1000GEL/);
+  assert.match(await getRates(), /₽->₾: 1₾=❌/);
+  assert.match(await calculateRatesFromRub("GEL", 1000), /1000₽=❌₾/);
+  assert.match(await calculateRatesToRub("GEL", 1000), /❌₽=1000₾/);
+});
+
+test("rate messages include English ₽ trend insights", async () => {
+  const now = Date.now();
+  await db.push(
+    "/rates",
+    {
+      ...rates,
+      CBRRateUSD: 93,
+      updatedDate: now,
+      history: [
+        ...weeklyUsdHistory(now),
+        {
+          key: "CBRRateUSD",
+          value: 90,
+          updatedDate: now - 24 * hour - 30 * 60 * 1000,
+        },
+        {
+          key: "CBRRateUSD",
+          value: 91,
+          updatedDate: now - 24 * hour + 30 * 60 * 1000,
+        },
+        { key: "CBRRateUSD", value: 92, updatedDate: now - 30 * 60 * 1000 },
+        { key: "CBRRateUSD", value: 93, updatedDate: now },
+      ],
+    },
+    true
+  );
+
+  assert.match(
+    await getRates(),
+    /1\$=93\.00₽ ↑ \+2\.50₽ over 24h, above 7d avg by 1\.50₽/
+  );
+  assert.match(
+    await calculateRatesFromRub("USD", 930),
+    /930₽=10\.00\$ \(rate ↑ \+2\.50₽ over 24h, above 7d avg by 1\.50₽\)/
+  );
 });
 
 test("updateRates keeps previous provider values when one provider fails", async () => {
-  await db.push("/rates", rates, true);
+  const now = Date.now();
+  await db.push(
+    "/rates",
+    {
+      ...rates,
+      history: [
+        { key: "koronaRateUSD", value: 90, updatedDate: now - 24 * hour },
+        { key: "koronaRateUSD", value: 95, updatedDate: now - hour },
+      ],
+    },
+    true
+  );
   const error = console.error;
   console.error = () => {};
 
@@ -137,6 +266,19 @@ test("updateRates keeps previous provider values when one provider fails", async
     assert.equal(result?.koronaRateUSD, 95);
     assert.equal(result?.CBRRateUSD, 91);
     assert.equal(result?.CBRRateGEL, 36);
+    assert.equal(
+      result?.history?.some((point) => {
+        return (
+          point.key === "koronaRateUSD" &&
+          point.updatedDate === result.updatedDate
+        );
+      }),
+      false
+    );
+    assert.match(
+      await getRates(),
+      /KoronaPay\n₽->₾: 1₾=34\.00₽\n₽->\$: 1\$=95\.00₽\n/
+    );
   } finally {
     console.error = error;
   }
@@ -177,6 +319,10 @@ test("updateRates stores unavailable markers on empty db when providers return i
   assert.equal(result?.CBRRateUSD, 91);
   assert.equal(result?.CBRRateGEL, -1);
   assert.equal(typeof result?.updatedDate, "number");
+  assert.deepEqual(
+    result?.history?.map(({ key, value }) => ({ key, value })),
+    [{ key: "CBRRateUSD", value: 91 }]
+  );
   assert.deepEqual(await getStoredRates(), result);
 });
 

@@ -10,3 +10,9 @@ export const formatRate = (value: number) =>
   isValidRate(value) ? value.toFixed(2) : "❌";
 
 export const isPositiveRate = isValidRate;
+
+export const currencySymbols = {
+  GEL: "₾",
+  RUB: "₽",
+  USD: "$",
+} as const;

@@ -1,13 +1,14 @@
 import { getCBRRates, getKoronaPayRates } from "./api";
 import { db } from "./db";
 import { isPositiveRate } from "./helpers";
+import {
+  pruneRateHistory,
+  type RateHistoryPoint,
+  type RateSnapshot,
+} from "./trend";
 
-export type Rates = {
-  koronaRateGEL: number;
-  koronaRateUSD: number;
-  CBRRateUSD: number;
-  CBRRateGEL: number;
-  updatedDate: number;
+export type Rates = RateSnapshot & {
+  history?: RateHistoryPoint[];
 };
 
 type Providers = {
@@ -30,6 +31,33 @@ export const getStoredRates = async () => {
 const normalize = (rate: unknown, fallback: number) => {
   const value = Number(rate);
   return isPositiveRate(value) ? value : fallback;
+};
+
+const getFreshRate = (
+  result: PromiseSettledResult<number>,
+  key: RateHistoryPoint["key"],
+  updatedDate: number
+) => {
+  if (result.status === "rejected") return null;
+
+  const value = Number(result.value);
+  if (!isPositiveRate(value)) return null;
+
+  return { key, value, updatedDate };
+};
+
+const getFreshCBRRate = (
+  result: PromiseSettledResult<number[]>,
+  index: number,
+  key: RateHistoryPoint["key"],
+  updatedDate: number
+) => {
+  if (result.status === "rejected") return null;
+
+  const value = Number(result.value[index]);
+  if (!isPositiveRate(value)) return null;
+
+  return { key, value, updatedDate };
 };
 
 const getSettledRate = (
@@ -71,8 +99,9 @@ export const updateRates = async (ratesProviders = providers) => {
     ];
 
     const [koronaGelRate, koronaUsdRate, CBRRates] = responses;
+    const updatedDate = new Date().getTime();
 
-    const result: Rates = {
+    const current = {
       koronaRateGEL: getSettledRate(
         koronaGelRate,
         fallback?.koronaRateGEL ?? -1
@@ -91,7 +120,18 @@ export const updateRates = async (ratesProviders = providers) => {
         1,
         fallback?.CBRRateGEL ?? -1
       ),
-      updatedDate: new Date().getTime(),
+      updatedDate,
+    };
+    const history = pruneRateHistory(fallback?.history ?? [], updatedDate);
+    const fresh = [
+      getFreshRate(koronaGelRate, "koronaRateGEL", updatedDate),
+      getFreshRate(koronaUsdRate, "koronaRateUSD", updatedDate),
+      getFreshCBRRate(CBRRates, 0, "CBRRateUSD", updatedDate),
+      getFreshCBRRate(CBRRates, 1, "CBRRateGEL", updatedDate),
+    ].filter((point): point is RateHistoryPoint => point !== null);
+    const result: Rates = {
+      ...current,
+      history: pruneRateHistory([...history, ...fresh], updatedDate),
     };
 
     await db.push("/rates", result, false);

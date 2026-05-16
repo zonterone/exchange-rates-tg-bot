@@ -1,8 +1,10 @@
 import {
+  currencySymbols,
   formatRate,
   getTimeDiffInMinutes,
   isPositiveRate,
 } from "./helpers";
+import { formatRateInsightsSuffix } from "./trend";
 import { getStoredRates } from "./updateRates";
 
 export const calculateRatesFromRub = async (
@@ -13,19 +15,30 @@ export const calculateRatesFromRub = async (
 
   if (!rates) return "Rates are not loaded yet. Try again later.";
 
+  const symbol = currencySymbols[currency];
   const rubToCurrencyInKoronaPay = isPositiveRate(rates[`koronaRate${currency}`])
     ? sum / rates[`koronaRate${currency}`]
     : -1;
 
   return `CBR
-RUB->${currency}: ${sum}RUB=${formatRate(
+${currencySymbols.RUB}->${symbol}: ${sum}${currencySymbols.RUB}=${formatRate(
     sum / rates[`CBRRate${currency}`]
-  )}${currency}
+  )}${symbol}${formatRateInsightsSuffix(
+    rates.history,
+    `CBRRate${currency}`,
+    rates[`CBRRate${currency}`],
+    rates.updatedDate
+  )}
 -------------------------
 KoronaPay
-RUB->${currency}: ${sum}RUB=${formatRate(
+${currencySymbols.RUB}->${symbol}: ${sum}${currencySymbols.RUB}=${formatRate(
     rubToCurrencyInKoronaPay
-  )}${currency}
+  )}${symbol}${formatRateInsightsSuffix(
+    rates.history,
+    `koronaRate${currency}`,
+    rates[`koronaRate${currency}`],
+    rates.updatedDate
+  )}
 -------------------------
 Last update: ${getTimeDiffInMinutes(rates.updatedDate)} minutes ago
 Rates are usually updated every 30 minutes
@@ -40,19 +53,30 @@ export const calculateRatesToRub = async (
 
   if (!rates) return "Rates are not loaded yet. Try again later.";
 
+  const symbol = currencySymbols[currency];
   const rubToCurrencyInKoronaPay = isPositiveRate(rates[`koronaRate${currency}`])
     ? sum * rates[`koronaRate${currency}`]
     : -1;
 
   return `CBR
-RUB->${currency}: ${formatRate(
+${currencySymbols.RUB}->${symbol}: ${formatRate(
     sum * rates[`CBRRate${currency}`]
-  )}RUB=${sum}${currency}
+  )}${currencySymbols.RUB}=${sum}${symbol}${formatRateInsightsSuffix(
+    rates.history,
+    `CBRRate${currency}`,
+    rates[`CBRRate${currency}`],
+    rates.updatedDate
+  )}
 -------------------------
 KoronaPay
-RUB->${currency}: ${formatRate(
+${currencySymbols.RUB}->${symbol}: ${formatRate(
     rubToCurrencyInKoronaPay
-  )}RUB=${sum}${currency}
+  )}${currencySymbols.RUB}=${sum}${symbol}${formatRateInsightsSuffix(
+    rates.history,
+    `koronaRate${currency}`,
+    rates[`koronaRate${currency}`],
+    rates.updatedDate
+  )}
 -------------------------
 Last update: ${getTimeDiffInMinutes(rates.updatedDate)} minutes ago
 Rates are usually updated every 30 minutes

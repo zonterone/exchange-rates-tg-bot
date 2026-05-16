@@ -10,6 +10,7 @@ import "dotenv/config";
 import { calculateRatesFromRub, calculateRatesToRub } from "./calculateRates";
 import { db } from "./db";
 import { getRates } from "./getRates";
+import { currencySymbols } from "./helpers";
 
 const token = process.env["BOT_TOKEN"];
 
@@ -38,10 +39,22 @@ const getInlineKeyboard = (
   activeBtnCommand: keyof typeof currency
 ) => {
   const keyboardBtns = [
-    { text: `${sum}RUB to ?GEL`, command: currency.TO_GEL },
-    { text: `${sum}RUB to ?USD`, command: currency.TO_USD },
-    { text: `?RUB to ${sum}USD`, command: currency.FROM_USD },
-    { text: `?RUB to ${sum}GEL`, command: currency.FROM_GEL },
+    {
+      text: `${sum}${currencySymbols.RUB} to ?${currencySymbols.GEL}`,
+      command: currency.TO_GEL,
+    },
+    {
+      text: `${sum}${currencySymbols.RUB} to ?${currencySymbols.USD}`,
+      command: currency.TO_USD,
+    },
+    {
+      text: `?${currencySymbols.RUB} to ${sum}${currencySymbols.USD}`,
+      command: currency.FROM_USD,
+    },
+    {
+      text: `?${currencySymbols.RUB} to ${sum}${currencySymbols.GEL}`,
+      command: currency.FROM_GEL,
+    },
   ];
   const inlineKeyboard = new InlineKeyboard();
   keyboardBtns.forEach((keyboardBtn) => {
