@@ -21,6 +21,25 @@ const cbrSchema = z.object({
   Valute: z.record(z.string(), z.object({ Value: rateSchema })),
 });
 
+export const parseKoronaPayRate = (res: unknown) => {
+  const result = koronaSchema.safeParse(res);
+  if (!result.success) return failedRate;
+
+  return result.data[0]?.exchangeRate ?? failedRate;
+};
+
+export const parseCBRRates = (
+  response: unknown,
+  currencies: ("USD" | "GEL")[]
+) => {
+  const parsed = cbrSchema.safeParse(response);
+  if (!parsed.success) return currencies.map(() => failedRate);
+
+  return currencies.map((currency) => {
+    return parsed.data.Valute[currency]?.Value ?? failedRate;
+  });
+};
+
 export const getKoronaPayRates = async (
   receivingCurrency: keyof typeof currenciesEnum
 ): Promise<number> => {
@@ -49,10 +68,7 @@ export const getKoronaPayRates = async (
     })
     .json<unknown>();
 
-  const result = koronaSchema.safeParse(res);
-  if (!result.success) return failedRate;
-
-  return result.data[0]?.exchangeRate ?? failedRate;
+  return parseKoronaPayRate(res);
 };
 
 export const getCBRRates = async (
@@ -62,12 +78,5 @@ export const getCBRRates = async (
     .get("https://www.cbr-xml-daily.ru/daily_json.js", {})
     .json<unknown>();
 
-  const parsed = cbrSchema.safeParse(response);
-  if (!parsed.success) return currencies.map(() => failedRate);
-
-  const result = currencies.map((currency) => {
-    return parsed.data.Valute[currency]?.Value ?? failedRate;
-  });
-
-  return result;
+  return parseCBRRates(response, currencies);
 };
