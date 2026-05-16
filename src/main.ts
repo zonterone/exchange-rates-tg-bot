@@ -1,5 +1,5 @@
 import { CronJob } from "cron";
-import { GrammyError, HttpError } from "grammy/web";
+import { GrammyError, HttpError } from "grammy";
 import { bot, setupBotCommands } from "./bot";
 import { updateRates } from "./updateRates";
 

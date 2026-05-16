@@ -171,17 +171,17 @@ test("rate messages contain only CBR and KoronaPay rates", async () => {
   await db.push("/rates", rates, true);
 
   const message = await getRates();
-  assert.match(message, /CBR\n₽->₾: 1₾=35\.00₽/);
-  assert.match(message, /KoronaPay\n₽->₾: 1₾=40\.00₽/);
+  assert.match(message, /CBR\n1₾=35\.00₽/);
+  assert.match(message, /KoronaPay\n1₾=40\.00₽/);
   assert.doesNotMatch(message, /ByBit|USDT|👍/);
 
   const fromRub = await calculateRatesFromRub("GEL", 1000);
-  assert.match(fromRub, /KoronaPay\n₽->₾: 1000₽=25\.00₾/);
+  assert.match(fromRub, /KoronaPay\n1000₽=25\.00₾/);
   assert.doesNotMatch(fromRub, /ByBit|USDT|👍/);
 
   const toRub = await calculateRatesToRub("USD", 10);
-  assert.match(toRub, /CBR\n₽->\$: 900\.00₽=10\$/);
-  assert.match(toRub, /KoronaPay\n₽->\$: 950\.00₽=10\$/);
+  assert.match(toRub, /CBR\n900\.00₽=10\$/);
+  assert.match(toRub, /KoronaPay\n950\.00₽=10\$/);
 });
 
 test("rate calculations render invalid provider values as unavailable", async () => {
@@ -195,7 +195,7 @@ test("rate calculations render invalid provider values as unavailable", async ()
     true
   );
 
-  assert.match(await getRates(), /₽->₾: 1₾=❌/);
+  assert.match(await getRates(), /1₾=❌/);
   assert.match(await calculateRatesFromRub("GEL", 1000), /1000₽=❌₾/);
   assert.match(await calculateRatesToRub("GEL", 1000), /❌₽=1000₾/);
 });
@@ -277,7 +277,7 @@ test("updateRates keeps previous provider values when one provider fails", async
     );
     assert.match(
       await getRates(),
-      /KoronaPay\n₽->₾: 1₾=34\.00₽\n₽->\$: 1\$=95\.00₽\n/
+      /KoronaPay\n1₾=34\.00₽\n1\$=95\.00₽\n/
     );
   } finally {
     console.error = error;

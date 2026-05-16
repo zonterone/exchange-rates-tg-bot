@@ -3,7 +3,7 @@ import {
   InlineKeyboard,
   InlineQueryResultBuilder,
   Keyboard,
-} from "grammy/web";
+} from "grammy";
 import { v4 as uuidv4 } from "uuid";
 
 import "dotenv/config";

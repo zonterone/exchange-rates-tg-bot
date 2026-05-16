@@ -8,13 +8,13 @@ export const getRates = async () => {
   if (!rates) return "Rates are not loaded yet. Try again later.";
 
   return `CBR
-${currencySymbols.RUB}->${currencySymbols.GEL}: 1${currencySymbols.GEL}=${formatRateWithInsights(
+1${currencySymbols.GEL}=${formatRateWithInsights(
     rates.CBRRateGEL,
     rates.history,
     "CBRRateGEL",
     rates.updatedDate
   )}
-${currencySymbols.RUB}->${currencySymbols.USD}: 1${currencySymbols.USD}=${formatRateWithInsights(
+1${currencySymbols.USD}=${formatRateWithInsights(
     rates.CBRRateUSD,
     rates.history,
     "CBRRateUSD",
@@ -22,13 +22,13 @@ ${currencySymbols.RUB}->${currencySymbols.USD}: 1${currencySymbols.USD}=${format
   )}
 -------------------------
 KoronaPay
-${currencySymbols.RUB}->${currencySymbols.GEL}: 1${currencySymbols.GEL}=${formatRateWithInsights(
+1${currencySymbols.GEL}=${formatRateWithInsights(
     rates.koronaRateGEL,
     rates.history,
     "koronaRateGEL",
     rates.updatedDate
   )}
-${currencySymbols.RUB}->${currencySymbols.USD}: 1${currencySymbols.USD}=${formatRateWithInsights(
+1${currencySymbols.USD}=${formatRateWithInsights(
     rates.koronaRateUSD,
     rates.history,
     "koronaRateUSD",

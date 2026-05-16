@@ -21,7 +21,7 @@ export const calculateRatesFromRub = async (
     : -1;
 
   return `CBR
-${currencySymbols.RUB}->${symbol}: ${sum}${currencySymbols.RUB}=${formatRate(
+${sum}${currencySymbols.RUB}=${formatRate(
     sum / rates[`CBRRate${currency}`]
   )}${symbol}${formatRateInsightsSuffix(
     rates.history,
@@ -31,7 +31,7 @@ ${currencySymbols.RUB}->${symbol}: ${sum}${currencySymbols.RUB}=${formatRate(
   )}
 -------------------------
 KoronaPay
-${currencySymbols.RUB}->${symbol}: ${sum}${currencySymbols.RUB}=${formatRate(
+${sum}${currencySymbols.RUB}=${formatRate(
     rubToCurrencyInKoronaPay
   )}${symbol}${formatRateInsightsSuffix(
     rates.history,
@@ -59,7 +59,7 @@ export const calculateRatesToRub = async (
     : -1;
 
   return `CBR
-${currencySymbols.RUB}->${symbol}: ${formatRate(
+${formatRate(
     sum * rates[`CBRRate${currency}`]
   )}${currencySymbols.RUB}=${sum}${symbol}${formatRateInsightsSuffix(
     rates.history,
@@ -69,7 +69,7 @@ ${currencySymbols.RUB}->${symbol}: ${formatRate(
   )}
 -------------------------
 KoronaPay
-${currencySymbols.RUB}->${symbol}: ${formatRate(
+${formatRate(
     rubToCurrencyInKoronaPay
   )}${currencySymbols.RUB}=${sum}${symbol}${formatRateInsightsSuffix(
     rates.history,
