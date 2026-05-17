@@ -134,7 +134,7 @@ export const updateRates = async (ratesProviders = providers) => {
       history: pruneRateHistory([...history, ...fresh], updatedDate),
     };
 
-    await db.push("/rates", result, false);
+    await db.push("/rates", result, true);
     return result;
   } catch (error) {
     console.error(error);

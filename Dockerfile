@@ -1,4 +1,4 @@
-FROM node:current-alpine AS base
+FROM node:24-alpine AS base
 
 FROM base AS deps
 WORKDIR /app
@@ -17,7 +17,8 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
+ENV NODE_ENV=production
+ENV NODE_OPTIONS=--max-old-space-size=192
 
 COPY --from=builder /app/dist ./
 

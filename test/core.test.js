@@ -307,6 +307,24 @@ test("updateRates keeps previous CBR values when CBR provider fails", async () =
   }
 });
 
+test("updateRates replaces stored history instead of merging it", async () => {
+  const providers = {
+    koronaGelRate: async () => 40,
+    koronaUsdRate: async () => 95,
+    CBRRates: async () => [90, 35],
+  };
+
+  await updateRates(providers);
+  await updateRates(providers);
+  await updateRates(providers);
+  await updateRates(providers);
+  const result = await updateRates(providers);
+  const stored = await getStoredRates();
+
+  assert.equal(result?.history?.length, 20);
+  assert.equal(stored?.history?.length, 20);
+});
+
 test("updateRates stores unavailable markers on empty db when providers return invalid data", async () => {
   const result = await updateRates({
     koronaGelRate: async () => 0,
