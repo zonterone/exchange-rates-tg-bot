@@ -70,6 +70,33 @@ A charge on top of the transfer rate (Avosend takes a fixed 79 ₽). Reported ne
 to the rate, never folded into it — the comparison stays a comparison of rates.
 _Avoid_: commission, markup
 
+### Failures
+
+**Failure**:
+Why a source has no fresh quote this round, in three words the whole codebase
+shares: `session`, `unavailable`, `shape`. It is stored per provider in the
+snapshot and printed as the note under the missing or stale rate, so the reason
+survives from the request to the message.
+_Avoid_: error, exception, status
+
+**Session failure**:
+MultiTransfer's antifraud rejected our session id, or there was none to send
+(see [ADR 0001](docs/adr/0001-multitransfer-antifraud-session.md)). The one
+failure a human can fix — paste a fresh id into `.env`.
+_Avoid_: auth error, forbidden
+
+**Unavailable**:
+The request never came back with an answer: a network error, a timeout, an HTTP
+status the source should not have returned.
+_Avoid_: down, offline, network error
+
+**Shape change**:
+The source answered, but nothing readable came out of the answer — the response
+no longer matches what the parser expects, or every rate in it fell outside its
+sanity range. Distinct from `unavailable`: the endpoint is alive and the fix is
+in our parser, not in their service.
+_Avoid_: parse error, invalid response, bad data
+
 ### Presentation
 
 **Rates card**:

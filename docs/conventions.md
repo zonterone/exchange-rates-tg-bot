@@ -31,25 +31,33 @@ modules read the snapshot and nothing else.
 | `src/bot.ts`         | grammY handlers, sum parsing, card `file_id` reuse            |
 | `src/db.ts`          | json-db init and the oversized-file guard                     |
 | `src/env.ts`         | loads `.env` and exposes every environment variable           |
+| `src/result.ts`      | the shared neverthrow adapters (zod, promises) every boundary uses |
 
 ## Adding a provider
 
 1. New file in `src/providers/` exporting a `Provider` (`{ name, ids, fetch }`)
    and a **pure, exported `parse`** so tests can feed it fixtures.
-2. Validate responses with zod `safeParse`; on any shape mismatch return `{}` —
-   a parse never throws. Validate the one element you need, not the whole list:
-   a broken neighbour must not cost the rates that parsed fine.
+2. Validate responses with zod `safeParse`; on any shape mismatch return
+   `err("shape")` — a parse never throws and never returns a bare value.
+   Validate the one element you need, not the whole list: a broken neighbour
+   must not cost the rates that parsed fine, and partial success is still
+   `ok({...})`.
 3. Register it in `src/providers/index.ts`; add its ids to `rateIds`,
    `providerOf` and `providerNames` in `src/rates.ts` (a new unit needs a new
    sanity range there).
 4. Add an entry to `transfers` or `exchanges` in `src/rates.ts` — that registry
    is what both renderers read. A provider missing from it is fetched, stored
    and never shown.
-5. Report failures as data (`failure: "session" | "unavailable"`) when the HTTP
-   layer can tell why; a rejected `fetch` becomes `unavailable` in
-   `updateRates`.
-6. Use the shared `api` (ky with retries, GET and POST alike) and `userAgent`
-   from `src/providers/types.ts`.
+5. `fetch` returns `ResultAsync<Payload, Failure>` and never rejects: a request
+   that fails is `err("unavailable")`, an antifraud rejection is
+   `err("session")`, an unreadable answer is `err("shape")`.
+6. Use the shared `api` (ky with retries, GET and POST alike), `userAgent`,
+   `request` and `body` from `src/providers/types.ts` — no `try/catch` and no
+   `fromPromise` of your own. `request(name, api.get(…))` owns the
+   `unavailable` word, `body(name, res)` reads the json and owns `shape`, and
+   between them they are the only place a provider's raw cause is logged.
+   Keeping the two steps apart is what tells a source that never answered from
+   one that answered with a page we cannot read.
 7. Record a real response in `test/fixtures/` and cover `parse` in
    `test/core.test.js`; check the live endpoint with `npm run probe`.
 
@@ -72,13 +80,43 @@ modules read the snapshot and nothing else.
 - `unknown` at every boundary, never `any`; narrow with zod or a type guard.
 - Guard clauses and early returns over `else`; arrow functions; functional
   array methods — `flatMap` returning `[]` is the house filter-map idiom.
-- Errors are values: return `null` / `{}` / a `failure` instead of throwing;
-  `try/catch` lives only at process edges (`main.ts`, `updateRates`,
-  `bot.catch`).
 - Comments only where the code can't say it: start lowercase, explain why.
 - Branching over a fixed union: `ts-pattern` per `AGENTS.md` — `match` closed
   with `.exhaustive()`, so a new variant of `Mode` or `Failure` breaks the
-  build instead of falling into a default.
+  build instead of falling into a default. A one-off ternary over two trivial
+  outcomes may stay a ternary; a third outcome is a `match`, and a nested
+  ternary always is.
+
+## Errors
+
+Failure is a value with a type: `Result` / `ResultAsync` from `neverthrow`
+([ADR 0002](adr/0002-errors-as-values-with-neverthrow.md), full reference in
+`.claude/skills/neverthrow/SKILL.md`).
+
+- Anything that can fail — a request, a zod or JSON parse, a db read or write, a
+  PNG render — returns a `Result`. Nothing in `src/` throws, and `try/catch`
+  appears nowhere: the throwing call is wrapped in `fromPromise` /
+  `fromThrowable` where it is made.
+- The error channel is a closed union of string literals, never `Error` and
+  never a free-form message. Branch over it with `match(...).exhaustive()`. A
+  provider's `Failure` (`session` / `unavailable` / `shape`) is a domain word
+  and is defined in `CONTEXT.md`; the rest are one-word technical vocabularies
+  local to their boundary (`"cold" | "unreadable"`, `"store"`, `"render"`,
+  `"unmovable"`, `"telegram"`, `"unidentified"`). One word, one reason, no
+  glossary entry needed unless a user ever reads it.
+- Absence is not failure. A missing quote is `undefined`, a trend with too
+  little history is `null`, no candidate to compare is `null` — those render as
+  `n/a` or `—` and stay as they are.
+- Log the original cause once, where it is caught (inside the `fromPromise` /
+  `fromThrowable` mapper), and carry only the word onward. An edge may log what
+  the word costs ("not starting"), never the cause a second time.
+- The shared bridges live in `src/result.ts` (`fromZod`, `read`, `write`) and
+  `src/providers/types.ts` (`request`, `body`). Reach for one before writing a
+  `fromPromise` by hand — that is how the log stays in one place.
+- `_unsafeUnwrap()` belongs in tests and nowhere else. Three edges are exempt
+  from "nothing throws": the missing `BOT_TOKEN` at import in `src/bot.ts`,
+  grammY's own `bot.catch`, and the outermost `main().catch` / `probe().catch`
+  — a net under an unforeseen rejection, not a way to handle a known one.
 
 ## Theming
 

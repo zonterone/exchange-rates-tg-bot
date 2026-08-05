@@ -1,7 +1,9 @@
+import type { Result } from "neverthrow";
 import { isMatching } from "ts-pattern";
 import { z } from "zod";
+import { fromZod } from "../result";
 import type { Payload, Provider } from "./types";
-import { api, userAgent } from "./types";
+import { api, body, request, userAgent } from "./types";
 
 const url = "https://unired-mobile-api.cloudgate.uz/get_rate_marketing/";
 
@@ -11,30 +13,26 @@ const isRubUsd = isMatching({ currency_name: "RUB_TO_USD" });
 
 const schema = z.object({ sell: z.coerce.number() });
 
-export const parse = (raw: unknown): Payload["rates"] => {
-  const list = z.array(z.unknown()).safeParse(raw);
-  if (!list.success) return {};
-
-  const parsed = schema.safeParse(list.data.find(isRubUsd));
-  if (!parsed.success) return {};
-
-  return { "rubPerUsd.unired": parsed.data.sell };
-};
+export const parse = (raw: unknown): Result<Payload["rates"], "shape"> =>
+  fromZod(z.array(z.unknown()).safeParse(raw))
+    .andThen((list) => fromZod(schema.safeParse(list.find(isRubUsd))))
+    .map((entry) => ({ "rubPerUsd.unired": entry.sell }));
 
 export const unired: Provider = {
   name: "unired",
   ids: ["rubPerUsd.unired"],
-  fetch: async () => {
-    const res = await api
-      .get(url, {
+  fetch: () =>
+    request(
+      "unired",
+      api.get(url, {
         headers: {
           accept: "*/*",
           origin: "https://unired.uz",
           "user-agent": userAgent,
         },
       })
-      .json<unknown>();
-
-    return { rates: parse(res) };
-  },
+    )
+      .andThen((res) => body("unired", res))
+      .andThen(parse)
+      .map((rates) => ({ rates })),
 };

@@ -64,6 +64,7 @@ const noteOf = (snapshot: Snapshot, entry: Entry) => {
     return match(failure)
       .with("session", () => "no data (session expired?)")
       .with("unavailable", () => "no data (provider unavailable)")
+      .with("shape", () => "no data (source changed shape)")
       .with(undefined, () => "no data")
       .exhaustive();
   }
@@ -73,6 +74,7 @@ const noteOf = (snapshot: Snapshot, entry: Entry) => {
   return match(failure)
     .with("session", () => `session expired?, ${from}`)
     .with("unavailable", () => `provider unavailable, ${from}`)
+    .with("shape", () => `source changed shape, ${from}`)
     .with(undefined, () => from)
     .exhaustive();
 };
@@ -105,13 +107,16 @@ const bestOf = (candidates: Candidate[], direction: "min" | "max") => {
   const [first, ...rest] = candidates;
   if (!first) return null;
 
-  return rest.reduce((best, candidate) => {
-    const better =
-      direction === "min"
-        ? candidate.value < best.value
-        : candidate.value > best.value;
-    return better ? candidate : best;
-  }, first);
+  const better = match(direction)
+    .with("min", () => (value: number, best: number) => value < best)
+    .with("max", () => (value: number, best: number) => value > best)
+    .exhaustive();
+
+  return rest.reduce(
+    (best, candidate) =>
+      better(candidate.value, best.value) ? candidate : best,
+    first
+  );
 };
 
 // only fresh rates can win — a carried over value is not something to act on

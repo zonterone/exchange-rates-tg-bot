@@ -1,3 +1,5 @@
+import { match } from "ts-pattern";
+
 import {
   amount,
   averageCell,
@@ -81,7 +83,10 @@ const byRate = (
     }
     if (first === second) return left.label.localeCompare(right.label);
 
-    return direction === "min" ? first - second : second - first;
+    return match(direction)
+      .with("min", () => first - second)
+      .with("max", () => second - first)
+      .exhaustive();
   });
 
 // one order decides both the rows and the winner, so the highlight is always
@@ -253,11 +258,16 @@ export const ratesCard = (snapshot: Snapshot) => {
     });
 
     const delta = deltaCell(snapshot, entry.id);
+    // a reference rate is nobody's news, so its move stays grey
     const welcome = entry.reference ? null : isWelcome(entry.id, delta);
     text(col(1), y, delta, {
       anchor: "end",
       size: trendSize,
-      fill: welcome === null ? theme.muted : welcome ? theme.good : theme.bad,
+      fill: match(welcome)
+        .with(null, () => theme.muted)
+        .with(true, () => theme.good)
+        .with(false, () => theme.bad)
+        .exhaustive(),
     });
     text(col(2), y, averageCell(snapshot, entry.id), {
       anchor: "end",

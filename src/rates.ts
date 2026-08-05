@@ -30,8 +30,11 @@ export type Quote = { value: number; updatedDate: number };
 
 export type HistoryPoint = { key: RateId; value: number; updatedDate: number };
 
-// why a provider has no fresh rate: session — antifraud rejected our session id
-export type Failure = "session" | "unavailable";
+// why a provider has no fresh rate: session — antifraud rejected our session
+// id, shape — it answered, but nothing readable came out of the answer
+const failures = ["session", "unavailable", "shape"] as const;
+
+export type Failure = (typeof failures)[number];
 
 export type Snapshot = {
   updatedDate: number;
@@ -72,7 +75,7 @@ export const isProviderName = (key: unknown): key is ProviderName =>
 
 // anything else in the stored snapshot is not a failure we know how to explain
 export const isFailure = (value: unknown): value is Failure =>
-  value === "session" || value === "unavailable";
+  failures.includes(value as Failure);
 
 export const isValidRate = (id: RateId, value: unknown): value is number => {
   if (typeof value !== "number" || !Number.isFinite(value)) return false;

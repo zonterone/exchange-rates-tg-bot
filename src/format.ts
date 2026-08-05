@@ -1,3 +1,5 @@
+import { match, P } from "ts-pattern";
+
 import { unitOf, type Fee, type RateId, type Snapshot, type Unit } from "./rates";
 import { dayDelta, weekAverage } from "./trend";
 
@@ -102,10 +104,10 @@ export const averageCell = (snapshot: Snapshot, id: RateId) => {
   return value.toFixed(rateDecimals[unitOf(id)]);
 };
 
-// a rising rouble price is bad news, a rising lari price is good news
-export const isWelcome = (id: RateId, delta: string) => {
-  if (delta.startsWith("+")) return unitOf(id) === "gelPerUsd";
-  if (delta.startsWith("-")) return unitOf(id) !== "gelPerUsd";
-
-  return null;
-};
+// a rising rouble price is bad news, a rising lari price is good news; a cell
+// with no sign at all — "n/a", "—", "old" — welcomes nothing
+export const isWelcome = (id: RateId, delta: string) =>
+  match(delta)
+    .with(P.string.startsWith("+"), () => unitOf(id) === "gelPerUsd")
+    .with(P.string.startsWith("-"), () => unitOf(id) !== "gelPerUsd")
+    .otherwise(() => null);

@@ -1,3 +1,4 @@
+import { errAsync, okAsync } from "neverthrow";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -16,7 +17,7 @@ process.env.DB_PATH = path.join(
 const { parseSum } = await import("../src/bot");
 const { ratesCard } = await import("../src/card");
 const { db, guard } = await import("../src/db");
-const { ratesPng } = await import("../src/image");
+const { ratesPng, toPng } = await import("../src/image");
 const { amountMessage, cold, ratesCaption, ratesMessage } = await import(
   "../src/messages"
 );
@@ -70,10 +71,17 @@ const block = (message) => message.split("<pre>")[1].split("</pre>")[0];
 // sums outside the grid are grouped with non-breaking spaces
 const plain = (message) => message.replaceAll(" ", " ");
 
+// a fetch never rejects: an answer is an ok, a reason is the word it failed with
 const provider = (name, ids, payload) => ({
   name,
   ids,
-  fetch: async () => payload,
+  fetch: () => okAsync(payload),
+});
+
+const failing = (name, ids, failure) => ({
+  name,
+  ids,
+  fetch: () => errAsync(failure),
 });
 
 const silentlySync = (run) => {
@@ -104,44 +112,73 @@ beforeEach(async () => {
 });
 
 test("parses every provider from a live response fixture", () => {
-  assert.deepEqual(parseUnired(json("unired.json")), {
+  assert.deepEqual(parseUnired(json("unired.json"))._unsafeUnwrap(), {
     "rubPerUsd.unired": 82.63,
   });
-  assert.deepEqual(parseMultitransfer(json("multitransfer.json")), {
+  assert.deepEqual(parseMultitransfer(json("multitransfer.json"))._unsafeUnwrap(), {
     "rubPerUsd.multitransfer": 83.46,
   });
-  assert.deepEqual(parseAvosend(fixture("avosend.html")), {
+  assert.deepEqual(parseAvosend(fixture("avosend.html"))._unsafeUnwrap(), {
     rates: { "rubPerUsd.avosend": 85.05 },
     fee: { fix: 79, percent: 0 },
   });
-  assert.deepEqual(parseKursi(json("kursi.json")), {
+  assert.deepEqual(parseKursi(json("kursi.json"))._unsafeUnwrap(), {
     "gelPerUsd.kursi": 2.619,
     "gelPerUsd.bog": 2.595,
     "gelPerUsd.tbc": 2.595,
     "gelPerUsd.nbg": 2.6239,
   });
-  assert.deepEqual(parseCbr(json("cbr.json")), {
+  assert.deepEqual(parseCbr(json("cbr.json"))._unsafeUnwrap(), {
     "rubPerUsd.cbr": 81.1291,
     "rubPerGel.cbr": 30.9075,
   });
 });
 
-test("returns nothing usable from malformed provider payloads", () => {
-  assert.deepEqual(parseUnired([{ currency_name: "UZ_TO_RU", sell: 144 }]), {});
-  assert.deepEqual(parseUnired("nope"), {});
-  assert.deepEqual(parseMultitransfer({ fees: [] }), {});
-  assert.deepEqual(
-    parseMultitransfer({
-      fees: [{ deliveryType: "to_cash", commissions: [] }],
-    }),
-    {}
+test("reports a shape change when nothing readable comes back", () => {
+  const reason = (result) => result._unsafeUnwrapErr();
+
+  assert.equal(
+    reason(parseUnired([{ currency_name: "UZ_TO_RU", sell: 144 }])),
+    "shape"
   );
-  assert.deepEqual(parseAvosend("<script>no json here</script>"), { rates: {} });
-  assert.deepEqual(parseAvosend('{"fromScale":2,"convertRate":"broken"}'), {
-    rates: {},
+  assert.equal(reason(parseUnired("nope")), "shape");
+  assert.equal(reason(parseMultitransfer({ fees: [] })), "shape");
+  assert.equal(
+    reason(
+      parseMultitransfer({ fees: [{ deliveryType: "to_cash", commissions: [] }] })
+    ),
+    "shape"
+  );
+  assert.equal(reason(parseAvosend("<script>no json here</script>")), "shape");
+  assert.equal(
+    reason(parseAvosend('{"fromScale":2,"convertRate":"broken"}')),
+    "shape"
+  );
+  assert.equal(reason(parseKursi([{ baseCurrencyCode: "GEL" }])), "shape");
+  assert.equal(reason(parseCbr({ Valute: {} })), "shape");
+});
+
+test("a rate that still reads is a success, not a shape change", () => {
+  const usdOnly = json("cbr.json");
+  delete usdOnly.Valute["GEL"];
+
+  assert.deepEqual(parseCbr(usdOnly)._unsafeUnwrap(), {
+    "rubPerUsd.cbr": 81.1291,
   });
-  assert.deepEqual(parseKursi([{ baseCurrencyCode: "GEL" }]), {});
-  assert.deepEqual(parseCbr({ Valute: {} }), {});
+
+  const withoutBanks = [
+    {
+      baseCurrencyCode: "GEL",
+      secondaryCurrencyCode: "USD",
+      buyRate: 2.619,
+      nbgRate: 2.6239,
+    },
+  ];
+
+  assert.deepEqual(parseKursi(withoutBanks)._unsafeUnwrap(), {
+    "gelPerUsd.kursi": 2.619,
+    "gelPerUsd.nbg": 2.6239,
+  });
 });
 
 test("takes the to_card delivery type, not the first commission", () => {
@@ -149,22 +186,22 @@ test("takes the to_card delivery type, not the first commission", () => {
   const cash = raw.fees.find((fee) => fee.deliveryType === "to_cash");
 
   assert.equal(cash.commissions[0].money.rate, "83.560000");
-  assert.deepEqual(parseMultitransfer(raw), {
+  assert.deepEqual(parseMultitransfer(raw)._unsafeUnwrap(), {
     "rubPerUsd.multitransfer": 83.46,
   });
 });
 
 test("reports a session failure instead of calling multitransfer unauthorised", async () => {
-  assert.deepEqual(await multitransfer.fetch(), {
-    rates: {},
-    failure: "session",
-  });
+  const answer = await multitransfer.fetch();
+
+  assert.equal(answer.isErr(), true, "a fetch answers, it never rejects");
+  assert.equal(answer._unsafeUnwrapErr(), "session");
 });
 
 test("keeps parsing when a neighbour in the list is broken", () => {
   const withJunk = [{ baseCurrencyCode: null }, "nonsense", ...json("kursi.json")];
 
-  assert.deepEqual(parseKursi(withJunk), {
+  assert.deepEqual(parseKursi(withJunk)._unsafeUnwrap(), {
     "gelPerUsd.kursi": 2.619,
     "gelPerUsd.bog": 2.595,
     "gelPerUsd.tbc": 2.595,
@@ -172,7 +209,7 @@ test("keeps parsing when a neighbour in the list is broken", () => {
   });
 
   const fees = json("multitransfer.json").fees;
-  assert.deepEqual(parseMultitransfer({ fees: ["broken", ...fees] }), {
+  assert.deepEqual(parseMultitransfer({ fees: ["broken", ...fees] })._unsafeUnwrap(), {
     "rubPerUsd.multitransfer": 83.46,
   });
 });
@@ -181,10 +218,13 @@ test("reports no fee rather than a zero one when the shape drifts", () => {
   const zero =
     '{"fromScale":2,"convertRate":"0.0118","tariffs":[{"fix":"0","percent":"0"}]}';
 
-  assert.deepEqual(parseAvosend(zero), { rates: { "rubPerUsd.avosend": 84.7458 } });
-  assert.deepEqual(parseAvosend('{"fromScale":2,"convertRate":"0.0118"}'), {
+  assert.deepEqual(parseAvosend(zero)._unsafeUnwrap(), {
     rates: { "rubPerUsd.avosend": 84.7458 },
   });
+  assert.deepEqual(
+    parseAvosend('{"fromScale":2,"convertRate":"0.0118"}')._unsafeUnwrap(),
+    { rates: { "rubPerUsd.avosend": 84.7458 } }
+  );
 });
 
 test("an unusable fee keeps the last known one", async () => {
@@ -202,7 +242,7 @@ test("an unusable fee keeps the last known one", async () => {
     }),
   ]);
 
-  assert.deepEqual(result.fees.avosend, { fix: 79, percent: 0 });
+  assert.deepEqual(result._unsafeUnwrap().fees.avosend, { fix: 79, percent: 0 });
 });
 
 test("rejects rates outside their sanity range", () => {
@@ -217,18 +257,20 @@ test("rejects rates outside their sanity range", () => {
 });
 
 test("drops out-of-range values instead of storing them", async () => {
-  const result = await silently(() =>
-    updateRates([
-      provider("avosend", ["rubPerUsd.avosend"], {
-        rates: { "rubPerUsd.avosend": 0.0117 },
-        fee: { fix: 79, percent: 0 },
-      }),
-    ])
-  );
+  const result = await updateRates([
+    provider("avosend", ["rubPerUsd.avosend"], {
+      rates: { "rubPerUsd.avosend": 0.0117 },
+      fee: { fix: 79, percent: 0 },
+    }),
+  ]);
+  const stored = result._unsafeUnwrap();
 
-  assert.equal(result.quotes["rubPerUsd.avosend"], undefined);
-  assert.equal(result.failures.avosend, "unavailable");
-  assert.deepEqual(result.history, []);
+  assert.equal(stored.quotes["rubPerUsd.avosend"], undefined);
+  // it answered, so the endpoint is alive and the fix is in our parser
+  assert.equal(stored.failures.avosend, "shape");
+  assert.deepEqual(stored.history, []);
+  // the fee came out of the same answer and is still worth keeping
+  assert.deepEqual(stored.fees.avosend, { fix: 79, percent: 0 });
 });
 
 test("keeps one grid across all tables of a message", () => {
@@ -327,6 +369,28 @@ test("marks carried over quotes and explains why", () => {
   assert.match(message, /MltTr — session expired\?, rate from 3h ago/);
 });
 
+test("says so when a source answered with a shape it cannot read", () => {
+  const missing = snapshot({ quotes: {}, failures: { kursi: "shape" } });
+
+  assert.match(
+    ratesMessage(missing, now),
+    /Kursi, BoG, TBC, NBG — no data \(source changed shape\)/
+  );
+
+  const stale = snapshot({
+    quotes: {
+      ...snapshot().quotes,
+      "gelPerUsd.kursi": { value: 2.619, updatedDate: now - 3 * hour },
+    },
+    failures: { kursi: "shape" },
+  });
+
+  assert.match(
+    ratesMessage(stale, now),
+    /Kursi — source changed shape, rate from 3h ago/
+  );
+});
+
 test("shows n/a and skips the best line when nothing is fresh", () => {
   const empty = snapshot({ quotes: {}, failures: { kursi: "unavailable" } });
   const message = ratesMessage(empty, now);
@@ -371,34 +435,67 @@ test("shows both directions of the dollar to lari exchange", () => {
 });
 
 test("normalises user input and rejects what is not a plain number", () => {
-  assert.equal(parseSum("10000"), 10000);
-  assert.equal(parseSum("10 000"), 10000);
-  assert.equal(parseSum("10 000"), 10000);
-  assert.equal(parseSum("1,5"), 1.5);
-  assert.equal(parseSum("1.5"), 1.5);
+  const sum = (text) => parseSum(text)._unsafeUnwrap();
+  const reason = (text) => parseSum(text)._unsafeUnwrapErr();
+
+  assert.equal(sum("10000"), 10000);
+  assert.equal(sum("10 000"), 10000);
+  assert.equal(sum("10 000"), 10000);
+  assert.equal(sum("1,5"), 1.5);
+  assert.equal(sum("1.5"), 1.5);
   // a separator followed by three digits groups thousands, it is not decimal
-  assert.equal(parseSum("10,000"), 10000);
-  assert.equal(parseSum("10.000"), 10000);
-  assert.equal(parseSum("1,000,000"), 1000000);
-  assert.equal(parseSum("1 234.56"), 1234.56);
-  assert.equal(parseSum("1,234.56"), 1234.56);
-  assert.equal(parseSum(""), null);
-  assert.equal(parseSum("-5"), null);
-  assert.equal(parseSum("1e5"), null);
-  assert.equal(parseSum("0x10"), null);
-  assert.equal(parseSum("abc"), null);
-  assert.equal(parseSum("100$"), null);
+  assert.equal(sum("10,000"), 10000);
+  assert.equal(sum("10.000"), 10000);
+  assert.equal(sum("1,000,000"), 1000000);
+  assert.equal(sum("1 234.56"), 1234.56);
+  assert.equal(sum("1,234.56"), 1234.56);
+  assert.equal(reason(""), "invalid");
+  assert.equal(reason("-5"), "invalid");
+  assert.equal(reason("1e5"), "invalid");
+  assert.equal(reason("0x10"), "invalid");
+  assert.equal(reason("abc"), "invalid");
+  assert.equal(reason("100$"), "invalid");
 });
 
-test("returns the cold message until the first update lands", async () => {
-  assert.equal(await getStoredRates(), null);
+test("reads a sum outside the calculable range as its own kind of refusal", () => {
+  assert.equal(parseSum("1")._unsafeUnwrap(), 1, "the smallest sum passes");
+  assert.equal(
+    parseSum("1000000")._unsafeUnwrap(),
+    1000000,
+    "the largest sum passes"
+  );
+  assert.equal(parseSum("0")._unsafeUnwrapErr(), "min");
+  assert.equal(parseSum("0.5")._unsafeUnwrapErr(), "min");
+  assert.equal(parseSum("1000001")._unsafeUnwrapErr(), "max");
+});
+
+test("tells a store with nothing in it from one it cannot read", async () => {
+  assert.equal((await getStoredRates())._unsafeUnwrapErr(), "cold");
 
   await db.push("/rates", { koronaRateGEL: 29.06, updatedDate: now }, true);
-  assert.equal(await getStoredRates(), null, "old korona snapshot is ignored");
+  assert.equal(
+    (await getStoredRates())._unsafeUnwrapErr(),
+    "unreadable",
+    "an old korona snapshot is not a snapshot"
+  );
+
+  const exists = db.exists.bind(db);
+  // json-db throws on every call for the rest of the process once a load fails
+  db.exists = async () => {
+    throw new Error("db load failed");
+  };
+
+  try {
+    const broken = await silently(() => getStoredRates());
+
+    assert.equal(broken._unsafeUnwrapErr(), "unreadable");
+  } finally {
+    db.exists = exists;
+  }
 });
 
 test("keeps previous quotes when a provider fails", async () => {
-  const stored = await updateRates([
+  const first = await updateRates([
     provider("unired", ["rubPerUsd.unired"], {
       rates: { "rubPerUsd.unired": 82.63 },
     }),
@@ -406,21 +503,15 @@ test("keeps previous quotes when a provider fails", async () => {
       rates: { "gelPerUsd.kursi": 2.619 },
     }),
   ]);
+  const stored = first._unsafeUnwrap();
 
-  const result = await silently(() =>
-    updateRates([
-      {
-        name: "unired",
-        ids: ["rubPerUsd.unired"],
-        fetch: async () => {
-          throw new Error("unired down");
-        },
-      },
-      provider("kursi", ["gelPerUsd.kursi"], {
-        rates: { "gelPerUsd.kursi": 2.62 },
-      }),
-    ])
-  );
+  const second = await updateRates([
+    failing("unired", ["rubPerUsd.unired"], "unavailable"),
+    provider("kursi", ["gelPerUsd.kursi"], {
+      rates: { "gelPerUsd.kursi": 2.62 },
+    }),
+  ]);
+  const result = second._unsafeUnwrap();
 
   assert.equal(result.quotes["rubPerUsd.unired"].value, 82.63);
   assert.equal(
@@ -436,18 +527,59 @@ test("keeps previous quotes when a provider fails", async () => {
   );
 });
 
-test("passes a rejected antifraud session through as a session failure", async () => {
+test("survives a provider that throws before it returns a result", async () => {
+  // ky builds its request eagerly, so a header value it cannot send throws
+  // inside fetch itself — the cycle must still store what the others answered
+  const exploding = {
+    name: "unired",
+    ids: ["rubPerUsd.unired"],
+    fetch: () => {
+      throw new TypeError("bad header value");
+    },
+  };
+
   const result = await silently(() =>
     updateRates([
-      provider("multitransfer", ["rubPerUsd.multitransfer"], {
-        rates: {},
-        failure: "session",
+      exploding,
+      provider("kursi", ["gelPerUsd.kursi"], {
+        rates: { "gelPerUsd.kursi": 2.619 },
       }),
     ])
   );
+  const stored = result._unsafeUnwrap();
 
-  assert.equal(result.failures.multitransfer, "session");
-  assert.equal(result.quotes["rubPerUsd.multitransfer"], undefined);
+  assert.equal(stored.failures.unired, "unavailable");
+  assert.equal(stored.quotes["gelPerUsd.kursi"].value, 2.619);
+});
+
+test("passes a rejected antifraud session through as a session failure", async () => {
+  const result = await updateRates([
+    failing("multitransfer", ["rubPerUsd.multitransfer"], "session"),
+  ]);
+  const stored = result._unsafeUnwrap();
+
+  assert.equal(stored.failures.multitransfer, "session");
+  assert.equal(stored.quotes["rubPerUsd.multitransfer"], undefined);
+});
+
+test("stores the word that fits each kind of provider answer", async () => {
+  const result = await updateRates([
+    // answered, but every rate in the answer fell outside its sanity range
+    provider("avosend", ["rubPerUsd.avosend"], {
+      rates: { "rubPerUsd.avosend": 0.0117 },
+    }),
+    failing("unired", ["rubPerUsd.unired"], "unavailable"),
+    failing("multitransfer", ["rubPerUsd.multitransfer"], "session"),
+    provider("kursi", ["gelPerUsd.kursi"], {
+      rates: { "gelPerUsd.kursi": 2.619 },
+    }),
+  ]);
+
+  assert.deepEqual(result._unsafeUnwrap().failures, {
+    avosend: "shape",
+    unired: "unavailable",
+    multitransfer: "session",
+  });
 });
 
 test("drops stored quotes, fees and failures that make no sense", async () => {
@@ -469,7 +601,7 @@ test("drops stored quotes, fees and failures that make no sense", async () => {
     true
   );
 
-  const stored = await getStoredRates();
+  const stored = (await getStoredRates())._unsafeUnwrap();
 
   assert.deepEqual(stored.quotes, {
     "rubPerUsd.unired": { value: 82.63, updatedDate: now },
@@ -482,14 +614,18 @@ test("moves a corrupt database aside instead of dying on every call", () => {
   const file = path.join(os.tmpdir(), `exchange-rates-guard-${process.pid}.json`);
   fs.writeFileSync(file, '{"rates": {"upd');
 
-  const backup = silentlySync(() => guard(file));
+  const backup = silentlySync(() => guard(file))._unsafeUnwrap();
 
   assert.match(backup, /\.corrupt-\d+$/);
   assert.equal(fs.existsSync(file), false, "the broken file is out of the way");
   assert.equal(fs.readFileSync(backup, "utf8"), '{"rates": {"upd');
 
   fs.writeFileSync(file, '{"rates": {}}');
-  assert.equal(guard(file), null, "a readable database is left alone");
+  assert.equal(
+    guard(file)._unsafeUnwrap(),
+    null,
+    "a readable database is left alone"
+  );
   fs.rmSync(file);
   fs.rmSync(backup);
 });
@@ -509,7 +645,7 @@ test("keeps history bounded to known and recent points", () => {
   assert.deepEqual(pruneHistory(undefined, now), []);
 });
 
-test("returns null when the database write fails", async () => {
+test("reports a store failure when the database write fails", async () => {
   const push = db.push.bind(db);
   db.push = async () => {
     throw new Error("db write failed");
@@ -524,7 +660,8 @@ test("returns null when the database write fails", async () => {
       ])
     );
 
-    assert.equal(result, null);
+    assert.equal(result.isErr(), true);
+    assert.equal(result._unsafeUnwrapErr(), "store");
   } finally {
     db.push = push;
   }
@@ -532,7 +669,7 @@ test("returns null when the database write fails", async () => {
 
 test("answers with the cold message before any rates are stored", async () => {
   assert.equal(cold, "Rates are not loaded yet. Try again later.");
-  assert.equal(await getStoredRates(), null);
+  assert.equal((await getStoredRates())._unsafeUnwrapErr(), "cold");
 });
 
 test("card ranks providers by profit with references pinned on top", () => {
@@ -749,10 +886,21 @@ test("card shows unavailable rates without picking a winner", () => {
 });
 
 test("renders the card to a png with the bundled fonts", () => {
-  const png = ratesPng(snapshot());
+  const png = ratesPng(snapshot())._unsafeUnwrap();
 
   assert.equal(png.subarray(0, 4).toString("hex"), "89504e47", "png magic");
-  assert.equal(ratesPng(snapshot()), png, "second call is served from cache");
+  assert.equal(
+    ratesPng(snapshot())._unsafeUnwrap(),
+    png,
+    "second call is served from cache"
+  );
+});
+
+test("reports a render failure instead of throwing on an svg resvg cannot read", () => {
+  const failed = silentlySync(() => toPng("not an svg"));
+
+  assert.equal(failed.isErr(), true);
+  assert.equal(failed._unsafeUnwrapErr(), "render");
 });
 
 test("docker config persists the same db path used by runtime", () => {

@@ -1,3 +1,4 @@
+import { isMatching, P } from "ts-pattern";
 import { isRateId, isValidRate, type HistoryPoint, type RateId } from "./rates";
 
 const hour = 60 * 60 * 1000;
@@ -19,20 +20,29 @@ const average = (points: HistoryPoint[]) => {
   return sum / points.length;
 };
 
-export const pruneHistory = (history: unknown, asOf: number) => {
+// the stored history is a boundary like a provider response: whether a point
+// still has the shape of one is a pattern, not a chain of typeof checks
+const isPoint = isMatching({
+  key: P.when(isRateId),
+  value: P.number,
+  updatedDate: P.number,
+});
+
+export const pruneHistory = (
+  history: unknown,
+  asOf: number
+): HistoryPoint[] => {
   if (!Array.isArray(history)) return [];
 
-  return (history as HistoryPoint[]).filter((point) => {
-    return (
-      point !== null &&
-      typeof point === "object" &&
-      isRateId(point.key) &&
-      isValidRate(point.key, point.value) &&
-      typeof point.updatedDate === "number" &&
-      point.updatedDate <= asOf &&
-      asOf - point.updatedDate <= historyMaxAge
-    );
-  });
+  const points: unknown[] = history;
+  return points.flatMap((point) =>
+    isPoint(point) &&
+    isValidRate(point.key, point.value) &&
+    point.updatedDate <= asOf &&
+    asOf - point.updatedDate <= historyMaxAge
+      ? [point]
+      : []
+  );
 };
 
 export const dayDelta = (

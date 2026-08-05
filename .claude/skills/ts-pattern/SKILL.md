@@ -154,6 +154,32 @@ const message = match(error)
   .otherwise(() => "Неизвестная ошибка");
 ```
 
+## With neverthrow Results
+
+Failure in this project is a `Result` from `neverthrow` whose error channel is a closed union
+of string literals (see [`neverthrow`](../neverthrow/SKILL.md)). The two libraries split the
+work: neverthrow says *that* it failed, `match` says what each failure means.
+
+- **Two branches — ok vs. err:** use neverthrow's own `result.match(onOk, onErr)`. It narrows
+  both channels with no import and no wildcard.
+- **Branching on the failure variants:** that is a closed union, so it is `match` +
+  `.exhaustive()` — a new variant then breaks the build at every place that explains it.
+
+```ts
+const note = (failure: Failure) =>
+  match(failure)
+    .with("session", () => "no data (session expired?)")
+    .with("unavailable", () => "no data (provider unavailable)")
+    .with("shape", () => "no data (source changed shape)")
+    .exhaustive();
+
+const text = result.match((snapshot) => ratesMessage(snapshot), note);
+```
+
+`Ok` and `Err` are exported classes, so `.with(P.instanceOf(Err), ...)` type-checks — reach for
+it only when the `Result` is one arm of a larger pattern (a tuple, say). Plain two-way
+branching reads better through `.match()`.
+
 ## Async handlers
 
 `match` is synchronous, but handlers may return promises — then `await` the whole expression:
