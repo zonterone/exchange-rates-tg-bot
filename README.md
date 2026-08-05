@@ -44,8 +44,12 @@ until the next one, while freshness lives in the message caption.
 
 3. Build Docker image 
 ```sh
-    docker build . -t zonter/exchange-rates-tg-bot
+    docker build . -t zonterone/exchange-rates-tg-bot
 ```
+
+Building on Apple Silicon for an x86 host needs `--platform linux/amd64` — the
+image that gets pushed is the one that was built, and the native `@resvg`
+addon inside it is architecture specific.
 
 4. Run Docker container
 
@@ -54,7 +58,7 @@ docker run -d --name=exchange-rates-tg-bot \
 --env-file .env \
 --restart unless-stopped \
 --volume ~/.zt_exchange_bot/db:/app/db \
-zonter/exchange-rates-tg-bot:latest
+zonterone/exchange-rates-tg-bot:latest
 ```
 
 The container runs as the unprivileged `node` user (uid 1000), so the mounted
