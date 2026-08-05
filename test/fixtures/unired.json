@@ -1,0 +1,48 @@
+[
+    {
+        "currency_name": "UZ_TO_RU",
+        "buy": 144.5,
+        "sell": 148.6
+    },
+    {
+        "currency_name": "RUB_TO_USD",
+        "sell": 82.63
+    },
+    {
+        "currency_name": "UZS_TO_USD",
+        "sell": 11970.0
+    },
+    {
+        "currency_name": "USD_TO_UZS",
+        "sell": 11910.0
+    },
+    {
+        "currency_name": "UZ_TO_TURKEY",
+        "sell": 256.6
+    },
+    {
+        "currency_name": "UZ_TO_KOREA",
+        "sell": 0.11785382519152812
+    },
+    {
+        "currency_name": "UZ_TO_INDIA",
+        "sell": 0.007933
+    },
+    {
+        "currency_name": "UZ_TO_TAJIKISTAN",
+        "sell": 1339.3017
+    },
+    {
+        "currency_name": "UZ_TO_KYRGYZSTAN",
+        "sell": 139.2916
+    },
+    {
+        "currency_name": "UZ_TO_CHINA",
+        "sell": 1778.6
+    },
+    {
+        "currency_name": "UZ_TO_UNIONPAY",
+        "sell": "6.73",
+        "sell_uzs": 1778.6
+    }
+]

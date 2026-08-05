@@ -20,6 +20,10 @@ const config: webpack.Configuration = {
   resolve: {
     extensions: [".ts", ".js"],
   },
+  // a native addon cannot be bundled, it is copied into the image instead
+  externals: {
+    "@resvg/resvg-js": "commonjs @resvg/resvg-js",
+  },
   module: {
     rules: [
       {

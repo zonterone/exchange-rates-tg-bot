@@ -1,141 +1,145 @@
-import { getCBRRates, getKoronaPayRates } from "./api";
 import { db } from "./db";
-import { isPositiveRate } from "./helpers";
+import { providers as defaultProviders } from "./providers";
+import type { Provider } from "./providers/types";
 import {
-  pruneRateHistory,
-  type RateHistoryPoint,
-  type RateSnapshot,
-} from "./trend";
+  isFailure,
+  isProviderName,
+  isRateId,
+  isValidFee,
+  isValidRate,
+  type Failure,
+  type Fee,
+  type HistoryPoint,
+  type ProviderName,
+  type Quote,
+  type RateId,
+  type Snapshot,
+} from "./rates";
+import { pruneHistory } from "./trend";
 
-export type Rates = RateSnapshot & {
-  history?: RateHistoryPoint[];
+const entriesOf = (stored: unknown) =>
+  !stored || typeof stored !== "object"
+    ? []
+    : Object.entries(stored as Record<string, unknown>);
+
+// the database is a boundary like any provider: a value that drifted, aged out
+// of the rate ids or was hand-edited would otherwise reach the formatters
+const toQuotes = (stored: unknown) => {
+  const quotes: Snapshot["quotes"] = {};
+
+  entriesOf(stored).forEach(([key, stored]) => {
+    if (!isRateId(key) || !stored || typeof stored !== "object") return;
+
+    const { value, updatedDate } = stored as Partial<Quote>;
+    if (!isValidRate(key, value) || typeof updatedDate !== "number") return;
+
+    quotes[key] = { value, updatedDate };
+  });
+
+  return quotes;
 };
 
-type Providers = {
-  koronaGelRate: () => Promise<number>;
-  koronaUsdRate: () => Promise<number>;
-  CBRRates: () => Promise<number[]>;
+const toFees = (stored: unknown) => {
+  const fees: Snapshot["fees"] = {};
+
+  entriesOf(stored).forEach(([key, stored]) => {
+    if (!isProviderName(key) || !stored || typeof stored !== "object") return;
+
+    const { fix, percent } = stored as Partial<Fee>;
+    const fee = { fix: Number(fix), percent: Number(percent) };
+    if (isValidFee(fee)) fees[key] = fee;
+  });
+
+  return fees;
 };
 
-const providers: Providers = {
-  koronaGelRate: () => getKoronaPayRates("GEL"),
-  koronaUsdRate: () => getKoronaPayRates("USD"),
-  CBRRates: () => getCBRRates(["USD", "GEL"]),
+const toFailures = (stored: unknown) => {
+  const failures: Snapshot["failures"] = {};
+
+  entriesOf(stored).forEach(([key, value]) => {
+    if (isProviderName(key) && isFailure(value)) failures[key] = value;
+  });
+
+  return failures;
+};
+
+const toSnapshot = (stored: unknown): Snapshot | null => {
+  if (!stored || typeof stored !== "object") return null;
+
+  const snapshot = stored as Partial<Snapshot>;
+  if (!snapshot.quotes || typeof snapshot.updatedDate !== "number") return null;
+
+  return {
+    updatedDate: snapshot.updatedDate,
+    quotes: toQuotes(snapshot.quotes),
+    fees: toFees(snapshot.fees),
+    failures: toFailures(snapshot.failures),
+    history: pruneHistory(snapshot.history, snapshot.updatedDate),
+  };
 };
 
 export const getStoredRates = async () => {
   if (!(await db.exists("/rates"))) return null;
-  return (await db.getData("/rates")) as Rates;
+
+  return toSnapshot(await db.getData("/rates"));
 };
 
-const normalize = (rate: unknown, fallback: number) => {
-  const value = Number(rate);
-  return isPositiveRate(value) ? value : fallback;
-};
-
-const getFreshRate = (
-  result: PromiseSettledResult<number>,
-  key: RateHistoryPoint["key"],
-  updatedDate: number
-) => {
-  if (result.status === "rejected") return null;
-
-  const value = Number(result.value);
-  if (!isPositiveRate(value)) return null;
-
-  return { key, value, updatedDate };
-};
-
-const getFreshCBRRate = (
-  result: PromiseSettledResult<number[]>,
-  index: number,
-  key: RateHistoryPoint["key"],
-  updatedDate: number
-) => {
-  if (result.status === "rejected") return null;
-
-  const value = Number(result.value[index]);
-  if (!isPositiveRate(value)) return null;
-
-  return { key, value, updatedDate };
-};
-
-const getSettledRate = (
-  result: PromiseSettledResult<number>,
-  fallback: number
-) => {
-  if (result.status === "rejected") {
-    console.error(result.reason);
-    return fallback;
-  }
-
-  return normalize(result.value, fallback);
-};
-
-const getSettledCBRRate = (
-  result: PromiseSettledResult<number[]>,
-  index: number,
-  fallback: number
-) => {
-  if (result.status === "rejected") {
-    console.error(result.reason);
-    return fallback;
-  }
-
-  return normalize(result.value[index], fallback);
-};
-
-export const updateRates = async (ratesProviders = providers) => {
+export const updateRates = async (providers: Provider[] = defaultProviders) => {
   try {
-    const fallback = await getStoredRates();
-    const responses = (await Promise.allSettled([
-      ratesProviders.koronaGelRate(),
-      ratesProviders.koronaUsdRate(),
-      ratesProviders.CBRRates(),
-    ])) as [
-      PromiseSettledResult<number>,
-      PromiseSettledResult<number>,
-      PromiseSettledResult<number[]>
-    ];
+    const stored = await getStoredRates();
+    const results = await Promise.allSettled(
+      providers.map((provider) => provider.fetch())
+    );
+    const updatedDate = Date.now();
 
-    const [koronaGelRate, koronaUsdRate, CBRRates] = responses;
-    const updatedDate = new Date().getTime();
+    const quotes: Partial<Record<RateId, Quote>> = { ...stored?.quotes };
+    const fees: Partial<Record<ProviderName, Fee>> = { ...stored?.fees };
+    const failures: Partial<Record<ProviderName, Failure>> = {};
+    const fresh: HistoryPoint[] = [];
 
-    const current = {
-      koronaRateGEL: getSettledRate(
-        koronaGelRate,
-        fallback?.koronaRateGEL ?? -1
-      ),
-      koronaRateUSD: getSettledRate(
-        koronaUsdRate,
-        fallback?.koronaRateUSD ?? -1
-      ),
-      CBRRateUSD: getSettledCBRRate(
-        CBRRates,
-        0,
-        fallback?.CBRRateUSD ?? -1
-      ),
-      CBRRateGEL: getSettledCBRRate(
-        CBRRates,
-        1,
-        fallback?.CBRRateGEL ?? -1
-      ),
+    providers.forEach((provider, index) => {
+      const result = results[index];
+
+      if (!result || result.status === "rejected") {
+        console.error(provider.name, result?.reason);
+        failures[provider.name] = "unavailable";
+        return;
+      }
+
+      const payload = result.value;
+      // an unusable fee keeps the last known one rather than zeroing the cost
+      if (payload.fee && isValidFee(payload.fee)) {
+        fees[provider.name] = payload.fee;
+      }
+
+      const accepted = provider.ids.flatMap((id) => {
+        const value = payload.rates[id];
+        return isValidRate(id, value) ? [{ key: id, value, updatedDate }] : [];
+      });
+
+      accepted.forEach((point) => {
+        quotes[point.key] = { value: point.value, updatedDate };
+      });
+      fresh.push(...accepted);
+
+      if (payload.failure) failures[provider.name] = payload.failure;
+      // a provider answering with nothing usable is as unavailable as a dead one
+      else if (accepted.length === 0) failures[provider.name] = "unavailable";
+    });
+
+    const snapshot: Snapshot = {
       updatedDate,
-    };
-    const history = pruneRateHistory(fallback?.history ?? [], updatedDate);
-    const fresh = [
-      getFreshRate(koronaGelRate, "koronaRateGEL", updatedDate),
-      getFreshRate(koronaUsdRate, "koronaRateUSD", updatedDate),
-      getFreshCBRRate(CBRRates, 0, "CBRRateUSD", updatedDate),
-      getFreshCBRRate(CBRRates, 1, "CBRRateGEL", updatedDate),
-    ].filter((point): point is RateHistoryPoint => point !== null);
-    const result: Rates = {
-      ...current,
-      history: pruneRateHistory([...history, ...fresh], updatedDate),
+      quotes,
+      fees,
+      failures,
+      history: pruneHistory(
+        [...(stored?.history ?? []), ...fresh],
+        updatedDate
+      ),
     };
 
-    await db.push("/rates", result, true);
-    return result;
+    await db.push("/rates", snapshot, true);
+    return snapshot;
   } catch (error) {
     console.error(error);
     return null;

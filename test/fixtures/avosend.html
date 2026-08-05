@@ -1,0 +1,75 @@
+
+                <script>
+            $(window).on('load', function() {
+                /*setTimeout(function() {
+                    $("#country-select-from_ru").click();
+                    $("#country-select-to_uz").click();
+                    $(".psuedo_select.psuedo_select_from").click();
+                    $(".psuedo_select.psuedo_select_to").click();
+                    $(".psuedo_select.psuedo_select_to").click();
+                    // $(".psuedo_select").each(function() {
+                    //     if (!$(this).hasClass("type_select_popup")) {
+                    //         $(this).click();
+                    //         console.log($(this));
+                    //     }
+                    // });
+                    $("#spanlabel_title_to").addClass("none");
+                    $("#spanlabel_title_to2").removeClass("none");
+                },300);*/
+
+function waitForElement(selector, callback, timeout = 5000) {
+                    const start = Date.now();
+
+                    const timer = setInterval(() => {
+                        const el = document.querySelector(selector);
+                        if (el) {
+                            clearInterval(timer);
+                            callback(el);
+                        } else if (Date.now() - start > timeout) {
+                            clearInterval(timer);
+                            document.querySelector(".right .calc.loading").classList.remove("loading");
+                        }
+                    }, 100);
+                }
+
+                function clickElement(selector, callback) {
+                    waitForElement(selector, (el) => {
+                        el.click();
+                        if (callback) callback();
+                    });
+                }
+
+                clickElement('.psuedo_select.psuedo_select_from', () => {
+                    clickElement('#country-select-from_ru', () => {
+                        clickElement('.psuedo_select.psuedo_select_to', () => {
+                            clickElement('#country-select-to_uz', () => {
+                                clickElement('.psuedo_select.psuedo_select_to', () => {
+                                    clickElement('#country-select-to_uz', () => {
+                                        waitForElement('#img_category_options_type li[data-value="opt_1"]', (el) => {
+                                            //document.querySelector(".right .calc.loading").classList.remove("loading");
+                                            el.click();
+                                            waitForElement('#currencyToggler #select_curr_0', (el) => {
+                                                //el.click();
+                                                $("#select_curr_1").click();
+                                                setTimeout(function(){
+                                                    $("#select_curr_0").click();
+                                                    setTimeout(function(){
+                                                        document.querySelector(".right .calc.loading").classList.remove("loading");
+                                                    },200)
+                                                },400)
+
+                                                //$("#select_curr_0").click();
+                                                //el.click();
+
+                                            });
+                                        });
+                                    });
+                                });
+                            });
+                        });
+                    });
+                });
+
+            });
+        </script>
+         {"fromScale":2,"toScale":2,"from":164.05,"to":1,"fee":79,"convertRate":0.01175778953561,"currencyRateText":"1.00 USD = 85.0500 RUB","fromPrvId":29875,"toPrvId":135512,"restrictionFrom":{"ccy":643,"ccyIso":"RUB","maxAmount":85129,"minAmount":504.25,"multiple":null},"restrictionTo":{"ccy":840,"ccyIso":"USD","maxAmount":1000,"minAmount":5,"multiple":null},"specialRateOffer":null,"code":0,"errorMessage":null,"tariffInfo":null,"tariffs":[{"from":null,"to":null,"percent":0,"fix":79}]}

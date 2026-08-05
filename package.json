@@ -8,12 +8,13 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "cron": "^4.4.0",
     "dotenv": "^17.4.2",
     "grammy": "^1.43.0",
     "ky": "^2.0.2",
     "node-json-db": "^2.6.0",
-    "uuid": "^14.0.0",
+    "ts-pattern": "^5.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -32,8 +33,9 @@
   "scripts": {
     "build": "webpack",
     "build:dev": "NODE_ENV=development webpack",
-    "start": "webpack && node -r dotenv/config ./dist/main.cjs",
+    "start": "webpack && node ./dist/main.cjs",
     "start:dev": "NODE_ENV=development webpack --watch",
+    "probe": "node --import tsx scripts/probe.ts",
     "test": "node --import tsx --test test/*.test.js",
     "test:coverage": "node --import tsx --test --experimental-test-coverage test/*.test.js"
   }

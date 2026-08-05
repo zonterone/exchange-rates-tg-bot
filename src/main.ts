@@ -26,7 +26,6 @@ const stop = () => {
 };
 
 const main = async () => {
-  await updateRates();
   await setupBotCommands();
 
   updateRatesCron.start();
@@ -43,6 +42,10 @@ const main = async () => {
       updateRatesCron.stop();
       process.exitCode = 1;
     });
+
+  // a slow source must not keep the bot silent on every restart: handlers
+  // answer with the stored snapshot, or `cold` until the first one lands
+  await updateRates();
 };
 
 process.once("SIGINT", stop);

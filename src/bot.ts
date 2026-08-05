@@ -2,23 +2,30 @@ import {
   Bot,
   InlineKeyboard,
   InlineQueryResultBuilder,
+  InputFile,
   Keyboard,
+  type Context,
 } from "grammy";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID } from "node:crypto";
 
-import "dotenv/config";
-import { calculateRatesFromRub, calculateRatesToRub } from "./calculateRates";
 import { db } from "./db";
-import { getRates } from "./getRates";
-import { currencySymbols } from "./helpers";
+import { env } from "./env";
+import { formatSum } from "./format";
+import { ratesPng } from "./image";
+import {
+  amountMessage,
+  cold,
+  ratesCaption,
+  ratesMessage,
+  type Mode,
+} from "./messages";
+import { getStoredRates } from "./updateRates";
 
-const token = process.env["BOT_TOKEN"];
-
-if (!token) {
-  throw new Error("BOT_TOKEN is required");
+if (!env.token) {
+  throw new Error("BOT_TOKEN is required, put it in .env");
 }
 
-export const bot = new Bot(token);
+export const bot = new Bot(env.token);
 
 const getRatesButtonText = "Get rates 💸";
 const keyboard = new Keyboard()
@@ -27,42 +34,85 @@ const keyboard = new Keyboard()
   .persistent()
   .placeholder("Send me sum");
 
-enum currency {
-  TO_GEL = "TO_GEL",
-  TO_USD = "TO_USD",
-  FROM_GEL = "FROM_GEL",
-  FROM_USD = "FROM_USD",
-}
+const minSum = 1;
+const maxSum = 1_000_000;
 
-const getInlineKeyboard = (
-  sum: number,
-  activeBtnCommand: keyof typeof currency
-) => {
-  const keyboardBtns = [
-    {
-      text: `${sum}${currencySymbols.RUB} to ?${currencySymbols.GEL}`,
-      command: currency.TO_GEL,
-    },
-    {
-      text: `${sum}${currencySymbols.RUB} to ?${currencySymbols.USD}`,
-      command: currency.TO_USD,
-    },
-    {
-      text: `?${currencySymbols.RUB} to ${sum}${currencySymbols.USD}`,
-      command: currency.FROM_USD,
-    },
-    {
-      text: `?${currencySymbols.RUB} to ${sum}${currencySymbols.GEL}`,
-      command: currency.FROM_GEL,
-    },
-  ];
+const hint = "Send me a number, e.g. 10000";
+
+const modes: { mode: Mode; text: (sum: string) => string }[] = [
+  { mode: "sendRub", text: (sum) => `${sum}₽ → $ ₾` },
+  { mode: "needRubForGel", text: (sum) => `?₽ → ${sum}₾` },
+  { mode: "needRubForUsd", text: (sum) => `?₽ → ${sum}$` },
+  { mode: "usdGel", text: (sum) => `${sum}$ ⇄ ₾` },
+];
+
+export const parseSum = (text: string) => {
+  const trimmed = text.replace(/\s/g, "");
+  // "1,5" is one and a half, "10,000" is ten thousand: a separator is decimal
+  // only when it is the last one and one or two digits follow it
+  const normalized = /[.,]\d{1,2}$/.test(trimmed)
+    ? trimmed.replace(/[.,](?=.*[.,])/g, "").replace(",", ".")
+    : trimmed.replace(/[.,]/g, "");
+
+  // Number() would also accept "1e5", "0x10" and "-5"
+  if (!/^\d+(\.\d+)?$/.test(normalized)) return null;
+
+  return Number(normalized);
+};
+
+const modeKeyboard = (sum: number, active: Mode) => {
   const inlineKeyboard = new InlineKeyboard();
-  keyboardBtns.forEach((keyboardBtn) => {
-    if (keyboardBtn.command !== activeBtnCommand) {
-      inlineKeyboard.text(keyboardBtn.text, keyboardBtn.command).row();
-    }
-  });
+
+  modes
+    .filter((item) => item.mode !== active)
+    .forEach((item) => {
+      inlineKeyboard.text(item.text(formatSum(sum)), item.mode).row();
+    });
+
   return inlineKeyboard;
+};
+
+const ratesText = async () => {
+  const snapshot = await getStoredRates();
+  if (!snapshot) return cold;
+
+  return ratesMessage(snapshot);
+};
+
+// telegram keeps the uploaded card, so one upload serves the whole half hour
+let card: { updatedDate: number; fileId: string } | null = null;
+
+const sendRatesCard = async (ctx: Context) => {
+  const snapshot = await getStoredRates();
+  if (!snapshot) {
+    await ctx.reply(cold);
+    return;
+  }
+
+  try {
+    const uploaded =
+      card?.updatedDate === snapshot.updatedDate
+        ? card.fileId
+        : new InputFile(ratesPng(snapshot), "rates.png");
+    const sent = await ctx.replyWithPhoto(uploaded, {
+      caption: ratesCaption(snapshot),
+    });
+
+    const fileId = sent.photo[sent.photo.length - 1]?.file_id;
+    if (fileId) card = { updatedDate: snapshot.updatedDate, fileId };
+  } catch (error) {
+    console.error("rates card failed", error);
+    // a file_id telegram refused must not be retried until the next update
+    card = null;
+    await ctx.reply(ratesMessage(snapshot), { parse_mode: "HTML" });
+  }
+};
+
+const amountText = async (mode: Mode, sum: number) => {
+  const snapshot = await getStoredRates();
+  if (!snapshot) return cold;
+
+  return amountMessage(mode, sum, snapshot);
 };
 
 const commandsList = {
@@ -98,7 +148,7 @@ const getLastSum = async (ctx: UserContext) => {
 bot.command(["start"], async (ctx) => {
   await db.push(getUserPath(ctx), {}, false);
   await ctx.reply(
-    `Hello! This bot watches current CBR and KoronaPay exchange rates in Georgia direction. To get the rates click the "${getRatesButtonText}".`,
+    `Hello! This bot watches ₽ → $ transfer rates (Unired, MultiTransfer, Avosend) and $ → ₾ exchange rates (Kursi, BoG, TBC) in the Georgia direction, with CBR and NBG for reference. Click the "${getRatesButtonText}" or send me a sum.`,
     { reply_markup: keyboard }
   );
 });
@@ -108,83 +158,55 @@ bot.on(["msg:text", "::bot_command"], async (ctx) => {
     getRatesButtonText === ctx.message?.text ||
     ctx.hasCommand(commandsList.rates.command)
   ) {
-    const ratesMessage = await getRates();
-    await ctx.reply(ratesMessage);
+    await sendRatesCard(ctx);
     return;
   }
 
-  if (!isNaN(Number(ctx.message?.text))) {
-    const sum = Number(ctx.message?.text);
+  const sum = parseSum(ctx.message?.text ?? "");
+  if (sum === null) {
+    await ctx.reply(hint);
+    return;
+  }
+  if (sum < minSum) {
+    await ctx.reply(`Min amount is ${formatSum(minSum)}`);
+    return;
+  }
+  if (sum > maxSum) {
+    await ctx.reply(`Max amount is ${formatSum(maxSum)}`);
+    return;
+  }
+
+  // every push rewrites the whole database file, so skip the unchanged ones
+  if ((await getLastSum(ctx)) !== sum) {
     await db.push(getUserPath(ctx), { lastSumToCalculate: sum }, false);
-    const calculateMessage = await calculateRatesFromRub("GEL", sum);
-    await ctx.reply(calculateMessage, {
-      reply_markup: getInlineKeyboard(sum, currency.TO_GEL),
+  }
+  await ctx.reply(await amountText("sendRub", sum), {
+    parse_mode: "HTML",
+    reply_markup: modeKeyboard(sum, "sendRub"),
+  });
+});
+
+modes.forEach(({ mode }) => {
+  bot.callbackQuery(mode, async (ctx) => {
+    const sum = await getLastSum(ctx);
+    if (sum === null) {
+      await ctx.answerCallbackQuery({ text: "Send sum first" });
+      return;
+    }
+
+    await ctx.editMessageText(await amountText(mode, sum), {
+      parse_mode: "HTML",
+      reply_markup: modeKeyboard(sum, mode),
     });
-  }
-});
-
-bot.callbackQuery(currency.TO_GEL, async (ctx) => {
-  const sum = await getLastSum(ctx);
-  if (sum === null) {
-    await ctx.answerCallbackQuery({ text: "Send sum first" });
-    return;
-  }
-
-  const calculateMessage = await calculateRatesFromRub("GEL", sum);
-  await ctx.editMessageText(calculateMessage, {
-    reply_markup: getInlineKeyboard(sum, currency.TO_GEL),
+    await ctx.answerCallbackQuery();
   });
-  await ctx.answerCallbackQuery();
-});
-
-bot.callbackQuery(currency.TO_USD, async (ctx) => {
-  const sum = await getLastSum(ctx);
-  if (sum === null) {
-    await ctx.answerCallbackQuery({ text: "Send sum first" });
-    return;
-  }
-
-  const calculateMessage = await calculateRatesFromRub("USD", sum);
-  await ctx.editMessageText(calculateMessage, {
-    reply_markup: getInlineKeyboard(sum, currency.TO_USD),
-  });
-  await ctx.answerCallbackQuery();
-});
-
-bot.callbackQuery(currency.FROM_GEL, async (ctx) => {
-  const sum = await getLastSum(ctx);
-  if (sum === null) {
-    await ctx.answerCallbackQuery({ text: "Send sum first" });
-    return;
-  }
-
-  const calculateMessage = await calculateRatesToRub("GEL", sum);
-  await ctx.editMessageText(calculateMessage, {
-    reply_markup: getInlineKeyboard(sum, currency.FROM_GEL),
-  });
-  await ctx.answerCallbackQuery();
-});
-
-bot.callbackQuery(currency.FROM_USD, async (ctx) => {
-  const sum = await getLastSum(ctx);
-  if (sum === null) {
-    await ctx.answerCallbackQuery({ text: "Send sum first" });
-    return;
-  }
-
-  const calculateMessage = await calculateRatesToRub("USD", sum);
-  await ctx.editMessageText(calculateMessage, {
-    reply_markup: getInlineKeyboard(sum, currency.FROM_USD),
-  });
-  await ctx.answerCallbackQuery();
 });
 
 bot.on("inline_query", async (ctx) => {
-  const ratesMessage = await getRates();
   const result = InlineQueryResultBuilder.article(
-    uuidv4(),
+    randomUUID(),
     "Send rates to chat"
-  ).text(ratesMessage);
+  ).text(await ratesText(), { parse_mode: "HTML" });
 
   await ctx.answerInlineQuery([result]);
 });

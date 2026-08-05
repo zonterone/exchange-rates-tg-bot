@@ -1,0 +1,23 @@
+{
+  "Date": "2026-08-05T11:30:00+03:00",
+  "Valute": {
+    "USD": {
+      "ID": "R01235",
+      "NumCode": "840",
+      "CharCode": "USD",
+      "Nominal": 1,
+      "Name": "Доллар США",
+      "Value": 81.1291,
+      "Previous": 80.0687
+    },
+    "GEL": {
+      "ID": "R01210",
+      "NumCode": "981",
+      "CharCode": "GEL",
+      "Nominal": 1,
+      "Name": "Лари",
+      "Value": 30.9075,
+      "Previous": 30.4919
+    }
+  }
+}
