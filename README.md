@@ -18,6 +18,12 @@ inline buttons that recalculate the same sum in the other directions
 (`?₽ → ₾`, `?₽ → $`, `$ ⇄ ₾`). The bot also answers inline queries, so
 `@your_bot` posts the current rates into any chat.
 
+A source that fails does not silently drop out of the table: the note under it
+says why — `no data (provider unavailable)` when the request never came back,
+`no data (source changed shape)` when it answered with something the parser
+cannot read, `no data (session expired?)` for a rejected MultiTransfer session.
+A quote kept from an earlier update carries its age instead.
+
 The card is drawn as SVG and rasterised by [@resvg/resvg-js](https://github.com/yisibl/resvg-js)
 with Noto Sans Mono from `assets/` — a native addon, so it is excluded from the
 webpack bundle and copied into the image separately. The card contains no
@@ -89,7 +95,8 @@ place, `src/env.ts`.
 
 MultiTransfer answers only to a `fhpsessionid` issued to a real browser session:
 an unknown id gets `423 Locked`, a missing one `400`. Without the variable the
-bot skips the request and reports `MltTr — session expired?` instead of a rate;
+bot skips the request and reports `MltTr — no data (session expired?)` instead
+of a rate;
 the other four providers are unaffected. To get an id, open
 [multitransfer.ru](https://multitransfer.ru/), copy the `fhpsessionid` request
 header from any `/commissions` call in devtools and put it in `.env` as
