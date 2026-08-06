@@ -56,8 +56,11 @@ _Avoid_: value, price
 
 **Stale quote**:
 A quote carried over from an earlier update because its source failed this round.
-Still shown, always marked, never allowed to win the best route.
-_Avoid_: cached rate, old rate
+Still shown, always marked, never allowed to win the best route. The mark is the
+word `old` in the trend column of a text table and a red `exp` chip beside the
+name on the card — both name this one concept, and the chip marks the row's own
+quote, not the other leg of a chained cell.
+_Avoid_: cached rate, old rate, expired rate
 
 **Sanity range**:
 The plausible interval for a unit (`rubPerUsd` 30–300, `gelPerUsd` 1–10,
@@ -80,10 +83,11 @@ survives from the request to the message.
 _Avoid_: error, exception, status
 
 **Session failure**:
-MultiTransfer's antifraud rejected our session id, or there was none to send
-(see [ADR 0001](docs/adr/0001-multitransfer-antifraud-session.md)). The one
-failure a human can fix — paste a fresh id into `.env`.
-_Avoid_: auth error, forbidden
+The bot had no antifraud session to ask MultiTransfer with: the mint could not
+run, could not finish, or produced an id the antifraud then refused (see
+[ADR 0001](docs/adr/0001-multitransfer-antifraud-session.md)). It says the mint
+is broken, not that the source is down — that would be `unavailable`.
+_Avoid_: auth error, forbidden, session expired
 
 **Unavailable**:
 The request never came back with an answer: a network error, a timeout, an HTTP

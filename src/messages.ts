@@ -9,6 +9,7 @@ import {
   freshValueOf,
   gel,
   group,
+  isStale,
   missing,
   rateCell,
   rub,
@@ -62,17 +63,17 @@ const noteOf = (snapshot: Snapshot, entry: Entry) => {
 
   if (!quote) {
     return match(failure)
-      .with("session", () => "no data (session expired?)")
+      .with("session", () => "no data (no antifraud session)")
       .with("unavailable", () => "no data (provider unavailable)")
       .with("shape", () => "no data (source changed shape)")
       .with(undefined, () => "no data")
       .exhaustive();
   }
-  if (quote.updatedDate === snapshot.updatedDate) return null;
+  if (!isStale(snapshot, entry.id)) return null;
 
   const from = `rate from ${age(snapshot.updatedDate - quote.updatedDate)} ago`;
   return match(failure)
-    .with("session", () => `session expired?, ${from}`)
+    .with("session", () => `no antifraud session, ${from}`)
     .with("unavailable", () => `provider unavailable, ${from}`)
     .with("shape", () => `source changed shape, ${from}`)
     .with(undefined, () => from)

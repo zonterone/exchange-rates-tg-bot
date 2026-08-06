@@ -78,3 +78,50 @@ which says nothing about the real cause: the script sits outside the package so
 tsx resolves it as CJS while `src/` is ESM. Put the scratch file inside the repo
 (`test/tmp-*.test.js`) and run it with `node --import tsx --test` instead — same
 loader config as the real suite, and `node:test` prints the console output.
+
+## 2026-08-05 20:35 — claude-opus-5
+
+Deploying with `docker run --env-file` after copying the project `.env` to the
+server → MultiTransfer reported `unavailable` on the first cycle. Cause:
+`MT_FHP_SESSION_ID="…"` is written with quotes in `.env`, and dotenv strips them
+while docker's `--env-file` does not — the header went out with literal quote
+characters and the endpoint answered non-2xx. Strip quotes from the file passed
+to `--env-file`, or keep values unquoted in `.env` since dotenv does not need
+them.
+
+## 2026-08-06 12:10 — claude-opus-5
+
+Timeboxing a live check with `timeout 120 npm run probe` on macOS → `zsh:
+command not found: timeout`. GNU coreutils is not installed by default and the
+BSD base system ships no equivalent; `gtimeout` exists only with `brew install
+coreutils`. Use the Bash tool's own `timeout` parameter instead of wrapping the
+command.
+
+## 2026-08-06 14:20 — claude-opus-5
+
+Building a throwaway entry to check that a bundled dependency runs standalone,
+via `npx webpack --entry ./test/tmp-bundle.ts` → `Invalid configuration object.
+configuration.entry[0] should be a non-empty string`. The CLI flag appends to
+the config's `entry` instead of replacing it, and `webpack.config.ts` declares
+it as an object (`{ main: "./src/main.ts" }`), which the merge turns into an
+array with an empty slot. Write a throwaway `webpack.tmp.cjs` with its own
+`entry` and pass `--config` instead.
+
+## 2026-08-06 14:05 — claude-opus-5
+
+A headless-chromium step verified on macOS failed inside the alpine container
+with no useful error — the antifraud simply refused the session it had just
+minted. Cause: `page.setUserAgent` was pinning a macOS Chrome string, which
+matches reality on a mac laptop and contradicts it on linux, and the
+fingerprint check reads the platform for itself. Anything that spoofs a user
+agent has to be tested in the image, not only on the dev machine.
+
+## 2026-08-06 15:10 — claude-opus-5
+
+A promise armed before an `await` and consumed after it (`page.waitForResponse`
+before `page.goto`) is a process-killer, not a style question: when the
+navigation rejects, the first promise is never awaited, rejects on its own and
+takes the process down under Node's default `--unhandled-rejections=throw`.
+Nothing in a `ResultAsync` chain catches it, because the rejection is not in
+that chain. Await the two together with `Promise.all` — it subscribes to both
+synchronously, so neither can be orphaned.

@@ -7,11 +7,11 @@ an SVG → PNG card, a sum gets a text breakdown. Data flows one way:
 `src/providers → snapshot (src/updateRates) → presentation (messages/card)`.
 
 - Domain glossary: `CONTEXT.md` — use its terms verbatim, they are load-bearing.
-- Decisions: `docs/adr/` (0001 — why MultiTransfer needs a browser session id;
-  0002 — why failure travels as a `Result`).
+- Decisions: `docs/adr/` (0001 — why MultiTransfer sessions are minted in a
+  browser the bot starts itself; 0002 — why failure travels as a `Result`).
 - Verify: `npm test` (offline fixtures) · `npm run build` · `npm run probe`
-  (live endpoints — the only check that catches an expired MultiTransfer
-  session).
+  (live endpoints — the only check that catches a MultiTransfer mint the
+  antifraud has started refusing).
 
 # Project conventions — read first
 

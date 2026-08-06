@@ -200,7 +200,7 @@ import { match } from "ts-pattern";
 
 const note = (failure: Failure) =>
   match(failure)
-    .with("session", () => "no data (session expired?)")
+    .with("session", () => "no data (no antifraud session)")
     .with("unavailable", () => "no data (provider unavailable)")
     .with("shape", () => "no data (source changed shape)")
     .exhaustive();

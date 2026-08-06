@@ -36,7 +36,10 @@ export const userAgent =
 // the cause is logged here, the last place it exists
 export const request = <T>(name: ProviderName, promise: PromiseLike<T>) =>
   ResultAsync.fromPromise(promise, (cause) => {
-    console.error(name, cause);
+    // ky hangs the whole Request off its errors and node prints it headers and
+    // all — one of those headers is a live antifraud session id, so only the
+    // message travels to the log
+    console.error(name, cause instanceof Error ? cause.message : cause);
     return "unavailable" as const;
   });
 

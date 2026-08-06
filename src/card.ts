@@ -9,6 +9,7 @@ import {
   feeText,
   freshValueOf,
   gel,
+  isStale,
   isWelcome,
   missing,
   rateCell,
@@ -34,6 +35,7 @@ const theme = {
   bad: "#f87171",
   bestBg: "rgba(74,222,128,0.16)",
   chip: "#2b303b",
+  staleBg: "rgba(248,113,113,0.16)",
 };
 
 export const fontFamily = "Noto Sans Mono";
@@ -57,6 +59,11 @@ const trendSize = 16;
 const titleSize = 19;
 const hintSize = 12;
 const chipSize = 11;
+// air before a chip, and between two of them on the same row
+const chipGap = 6;
+// the best-rate plate bleeds this far past its number on either side, so the
+// name column has to stop short of it and not just of the digits
+const plateAir = 5;
 const rowStep = 21;
 const headerGap = 21;
 const headerToRow = 24;
@@ -167,21 +174,25 @@ export const ratesCard = (snapshot: Snapshot) => {
 
   const middle = (y: number) => y - nameSize * halfCap;
 
-  const chip = (x: number, y: number, value: string) => {
-    const chipWidth = width(value, chipSize) + 16;
+  const chipWidth = (value: string) => width(value, chipSize) + 12;
+
+  // a warning chip is the only one allowed to pull the eye
+  const chip = (x: number, y: number, value: string, warn: boolean) => {
     const height = 17;
     const center = middle(y);
 
     out.push(
-      `<rect x="${x}" y="${center - height / 2}" rx="9" ry="9" width="${chipWidth}" height="${height}" fill="${theme.chip}"/>`
+      `<rect x="${x}" y="${center - height / 2}" rx="9" ry="9" width="${chipWidth(
+        value
+      )}" height="${height}" fill="${warn ? theme.staleBg : theme.chip}"/>`
     );
-    text(x + chipWidth / 2, center + chipSize * halfCap, value, {
+    text(x + chipWidth(value) / 2, center + chipSize * halfCap, value, {
       anchor: "middle",
       size: chipSize,
-      fill: theme.muted,
+      fill: warn ? theme.bad : theme.muted,
     });
 
-    return x + chipWidth;
+    return x + chipWidth(value);
   };
 
   const plate = (right: number, y: number, value: string) => {
@@ -189,9 +200,11 @@ export const ratesCard = (snapshot: Snapshot) => {
     const center = middle(y);
 
     out.push(
-      `<rect x="${right - width(value, rateSize) - 10}" y="${
+      `<rect x="${right - width(value, rateSize) - plateAir}" y="${
         center - height / 2
-      }" rx="7" ry="7" width="${width(value, rateSize) + 20}" height="${height}" fill="${theme.bestBg}"/>`
+      }" rx="7" ry="7" width="${
+        width(value, rateSize) + plateAir * 2
+      }" height="${height}" fill="${theme.bestBg}"/>`
     );
   };
 
@@ -222,32 +235,43 @@ export const ratesCard = (snapshot: Snapshot) => {
 
   const fee = feeOf(snapshot);
 
-  // the fee is a cost the rate hides, direct is a rate that skips the chain
-  const chipOf = (entry: Entry) => {
-    if (entry.id === direct.id) return "direct";
-    if (entry.id === feeId && fee) return `fee ${feeText(fee)}`;
+  // exp says the number is not from this update and comes first because it is
+  // the only chip that changes how far the number can be trusted; direct is a
+  // rate that skips the chain, fee is a cost the rate hides
+  const chipsOf = (entry: Entry) => [
+    ...(isStale(snapshot, entry.id) ? [{ text: "exp", warn: true }] : []),
+    ...(entry.id === direct.id ? [{ text: "direct", warn: false }] : []),
+    ...(entry.id === feeId && fee
+      ? [{ text: `fee ${feeText(fee)}`, warn: false }]
+      : []),
+  ];
 
-    return null;
-  };
-
-  // returns where the name ends, chip included, so a row can continue there
-  const label = (y: number, entry: Entry) => {
+  // the name column ends where the row's own number begins, and a chip that
+  // would cross that line is dropped rather than drawn over the rate — which
+  // is why the warning is ordered first and survives the squeeze
+  const label = (y: number, entry: Entry, limit: number) => {
     text(pad, y, entry.label, {
       fill: entry.reference ? theme.muted : theme.text,
     });
 
-    const end = pad + width(entry.label, nameSize);
-    const chipText = chipOf(entry);
-    if (!chipText) return end;
+    chipsOf(entry).reduce((x, item) => {
+      const start = x + chipGap;
+      if (start + chipWidth(item.text) > limit) return x;
 
-    return chip(end + 14, y, chipText);
+      return chip(start, y, item.text, item.warn);
+    }, pad + width(entry.label, nameSize));
   };
+
+  // where the row's own number starts, plate included — a chip may reach it
+  // but not cross it
+  const roomFor = (value: string) =>
+    col(0) - width(value, rateSize) - plateAir;
 
   const rateRow = (y: number, entry: Entry, best: RateId | null) => {
     const fill = entry.reference ? theme.muted : theme.text;
-    label(y, entry);
-
     const rate = rateCell(snapshot, entry.id);
+    label(y, entry, roomFor(rate));
+
     const isBest = entry.id === best;
     if (isBest) plate(col(0), y, rate);
 
@@ -282,15 +306,20 @@ export const ratesCard = (snapshot: Snapshot) => {
     columns: Entry[],
     best: { transfer: RateId | null; exchange: RateId | null }
   ) => {
-    label(y, entry);
-
-    columns.forEach((column, index) => {
+    const cells = columns.map((column) => {
       const rubPerUsd = valueOf(snapshot, entry.id);
       const gelPerUsd = valueOf(snapshot, column.id);
-      const value =
-        rubPerUsd === undefined || gelPerUsd === undefined
-          ? missing
-          : amount(rubPerUsd / gelPerUsd);
+
+      return rubPerUsd === undefined || gelPerUsd === undefined
+        ? missing
+        : amount(rubPerUsd / gelPerUsd);
+    });
+
+    // the leftmost cell is the one the name column can run into
+    label(y, entry, roomFor(cells[0] ?? missing));
+
+    columns.forEach((column, index) => {
+      const value = cells[index] ?? missing;
       const isBest = entry.id === best.transfer && column.id === best.exchange;
       const fill = value === missing ? theme.muted : theme.text;
 

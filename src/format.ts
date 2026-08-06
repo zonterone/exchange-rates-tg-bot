@@ -28,9 +28,16 @@ const deltaDecimals: Record<Unit, number> = {
 export const valueOf = (snapshot: Snapshot, id: RateId) =>
   snapshot.quotes[id]?.value;
 
+// a quote the last cycle failed to refresh: it is carried over rather than
+// dropped, so the reader has to be told it is not from this update
+export const isStale = (snapshot: Snapshot, id: RateId) => {
+  const quote = snapshot.quotes[id];
+  return quote !== undefined && quote.updatedDate !== snapshot.updatedDate;
+};
+
 export const freshValueOf = (snapshot: Snapshot, id: RateId) => {
   const quote = snapshot.quotes[id];
-  if (!quote || quote.updatedDate !== snapshot.updatedDate) return undefined;
+  if (!quote || isStale(snapshot, id)) return undefined;
 
   return quote.value;
 };
@@ -80,7 +87,7 @@ export const rateCell = (snapshot: Snapshot, id: RateId) => {
 export const deltaCell = (snapshot: Snapshot, id: RateId) => {
   const quote = snapshot.quotes[id];
   if (!quote) return noTrend;
-  if (quote.updatedDate !== snapshot.updatedDate) return staleMark;
+  if (isStale(snapshot, id)) return staleMark;
 
   const delta = dayDelta(
     snapshot.history,

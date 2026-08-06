@@ -15,6 +15,7 @@
     "ky": "^2.0.2",
     "neverthrow": "^8.2.0",
     "node-json-db": "^2.6.0",
+    "puppeteer-core": "^25.4.0",
     "ts-pattern": "^5.9.0",
     "zod": "^4.4.3"
   },

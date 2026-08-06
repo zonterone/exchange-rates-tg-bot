@@ -21,8 +21,10 @@ inline buttons that recalculate the same sum in the other directions
 A source that fails does not silently drop out of the table: the note under it
 says why — `no data (provider unavailable)` when the request never came back,
 `no data (source changed shape)` when it answered with something the parser
-cannot read, `no data (session expired?)` for a rejected MultiTransfer session.
-A quote kept from an earlier update carries its age instead.
+cannot read, `no data (no antifraud session)` when there was no MultiTransfer
+session to ask with. A quote kept from an earlier update carries its age instead, and
+on the card a red `exp` chip next to the name says the number is not from this
+update.
 
 The card is drawn as SVG and rasterised by [@resvg/resvg-js](https://github.com/yisibl/resvg-js)
 with Noto Sans Mono from `assets/` — a native addon, so it is excluded from the
@@ -63,9 +65,15 @@ addon inside it is architecture specific.
 docker run -d --name=exchange-rates-tg-bot \
 --env-file .env \
 --restart unless-stopped \
+--memory 1g \
 --volume ~/.zt_exchange_bot/db:/app/db \
 zonterone/exchange-rates-tg-bot:latest
 ```
+
+The image mints its MultiTransfer session in a real browser, so it needs room
+for one: chromium adds roughly 320 MB while a mint runs, and under 512 MB the
+mint fails outright. The image carries `tini` as its init, so chromium's
+orphans are reaped — do not override the entrypoint.
 
 The container runs as the unprivileged `node` user (uid 1000), so the mounted
 database directory has to be writable by it — on an existing installation
@@ -87,21 +95,28 @@ place, `src/env.ts`.
 | Variable             | Required               | Description                            |
 | :------------------- | :--------------------- | :------------------------------------- |
 | `BOT_TOKEN`          | **Required**           | Your Telegram API bot token            |
-| `MT_FHP_SESSION_ID`  | MultiTransfer only     | Antifraud session id, see below        |
+| `CHROMIUM_PATH`      | Development only       | Browser that mints the MultiTransfer session, see below |
 | `DB_PATH`            | Optional               | Database location, default `db/db.json`|
 | `ASSETS_PATH`        | Optional               | Font directory, default `assets/`      |
 
 ### MultiTransfer session
 
-MultiTransfer answers only to a `fhpsessionid` issued to a real browser session:
-an unknown id gets `423 Locked`, a missing one `400`. Without the variable the
-bot skips the request and reports `MltTr — no data (session expired?)` instead
-of a rate;
-the other four providers are unaffected. To get an id, open
-[multitransfer.ru](https://multitransfer.ru/), copy the `fhpsessionid` request
-header from any `/commissions` call in devtools and put it in `.env` as
-`MT_FHP_SESSION_ID`. It expires every few months — `npm run probe` is the way to
-notice. See [docs/adr/0001-multitransfer-antifraud-session.md](docs/adr/0001-multitransfer-antifraud-session.md).
+MultiTransfer answers only to an `fhpsessionid` its own page has registered with
+its antifraud: an unregistered id gets `423 Locked`, a missing one `400`. The id
+lives less than a day, so the bot mints its own — it loads
+[multitransfer.ru](https://multitransfer.ru/) in headless chromium, waits for the
+antifraud to register the page's session, and reads it back. One id serves every
+cycle until a `423` says otherwise; the browser starts about once a day, not
+every half hour.
+
+The Docker image installs chromium and sets `CHROMIUM_PATH` itself, so nothing
+has to be configured. Outside Docker, point `CHROMIUM_PATH` at any local Chrome
+or Chromium — without it MultiTransfer reports
+`MltTr — no data (no antifraud session)` and the other four providers are
+unaffected. `npm run probe` is what shows whether minting still works — it is
+bundled into the image too, so a deployed container answers the same question
+with `docker exec <container> node probe.cjs`. See
+[docs/adr/0001-multitransfer-antifraud-session.md](docs/adr/0001-multitransfer-antifraud-session.md).
 
 ## Development
 

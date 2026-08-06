@@ -115,7 +115,7 @@ export const transfers: Entry[] = [
 export const exchanges: Entry[] = [
   { id: "gelPerUsd.nbg", label: "NBG", short: "NBG", reference: true },
   { id: "gelPerUsd.kursi", label: "Kursi", short: "Kursi" },
-  { id: "gelPerUsd.bog", label: "Bank of Georgia", short: "BoG" },
+  { id: "gelPerUsd.bog", label: "BoG", short: "BoG" },
   { id: "gelPerUsd.tbc", label: "TBC", short: "TBC" },
 ];
 

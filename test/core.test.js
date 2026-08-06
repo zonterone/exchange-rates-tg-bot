@@ -6,8 +6,9 @@ import path from "node:path";
 import test, { beforeEach } from "node:test";
 
 process.env.BOT_TOKEN = "123:test";
-// keeps a real .env out of the tests: dotenv never overrides what is already set
-process.env.MT_FHP_SESSION_ID = "";
+// keeps a real .env out of the tests: dotenv never overrides what is already
+// set, and an empty path means no test ever starts a browser
+process.env.CHROMIUM_PATH = "";
 process.env.DB_PATH = path.join(
   os.tmpdir(),
   `exchange-rates-bot-test-${process.pid}`,
@@ -29,6 +30,7 @@ const { multitransfer, parse: parseMultitransfer } = await import(
 );
 const { parse: parseUnired } = await import("../src/providers/unired");
 const { isValidRate } = await import("../src/rates");
+const { forget, remember, stored } = await import("../src/session");
 const { render } = await import("../src/table");
 const { pruneHistory } = await import("../src/trend");
 const { getStoredRates, updateRates } = await import("../src/updateRates");
@@ -191,11 +193,20 @@ test("takes the to_card delivery type, not the first commission", () => {
   });
 });
 
-test("reports a session failure instead of calling multitransfer unauthorised", async () => {
+test("reports a session failure when there is no browser to mint one with", async () => {
   const answer = await multitransfer.fetch();
 
   assert.equal(answer.isErr(), true, "a fetch answers, it never rejects");
   assert.equal(answer._unsafeUnwrapErr(), "session");
+  assert.equal(stored(), undefined, "a failed mint caches nothing");
+});
+
+test("only a session id that bought a rate is kept, and a refused one is dropped", () => {
+  remember("proven-id");
+  assert.equal(stored(), "proven-id");
+
+  forget();
+  assert.equal(stored(), undefined, "a refused id never survives to be reused");
 });
 
 test("keeps parsing when a neighbour in the list is broken", () => {
@@ -366,7 +377,7 @@ test("marks carried over quotes and explains why", () => {
   const message = ratesMessage(stale, now);
 
   assert.match(block(message), /MltTr\s+83\.46\s+old/);
-  assert.match(message, /MltTr — session expired\?, rate from 3h ago/);
+  assert.match(message, /MltTr — no antifraud session, rate from 3h ago/);
 });
 
 test("says so when a source answered with a shape it cannot read", () => {
@@ -680,8 +691,56 @@ test("card ranks providers by profit with references pinned on top", () => {
   assert.ok(at("Unired") < at("MultiTransfer"), "cheapest dollars first");
   assert.ok(at("MultiTransfer") < at("Avosend"));
   assert.ok(at("NBG") < at("Kursi"), "reference first");
-  assert.ok(at("Kursi") < at("Bank of Georgia"), "most lari first");
-  assert.ok(at("Bank of Georgia") < at("TBC"), "ties break by name");
+  assert.ok(at("Kursi") < at("BoG"), "most lari first");
+  assert.ok(at("BoG") < at("TBC"), "ties break by name");
+});
+
+// the same shape the card uses: a quote carried over from an earlier update
+const staling = (base, id) => ({
+  ...base,
+  quotes: {
+    ...base.quotes,
+    [id]: { ...base.quotes[id], updatedDate: base.updatedDate - 30 * 60000 },
+  },
+});
+
+test("card marks a quote the update failed to refresh with a red exp chip", () => {
+  const fresh = snapshot();
+  const svg = ratesCard(staling(fresh, "rubPerUsd.multitransfer"));
+  const chip = svg.split("\n").find((line) => line.includes(">exp</text>"));
+
+  assert.ok(chip, "the stale row carries an exp chip");
+  assert.match(chip, /#f87171/, "the chip text is the warning colour");
+  assert.ok(
+    !ratesCard(fresh).includes(">exp</text>"),
+    "a fully refreshed card carries no chip"
+  );
+});
+
+test("card drops the lesser chip rather than draw it over the rate", () => {
+  const base = staling(snapshot(), "rubPerUsd.avosend");
+
+  const roomy = ratesCard(base);
+  assert.ok(roomy.includes(">exp</text>"), "the warning is drawn");
+  assert.ok(roomy.includes(">fee 79₽</text>"), "and so is the fee beside it");
+
+  // a wordier fee and a three-digit rouble rate — both within what the
+  // validator allows — leave the name column no room for two chips
+  const tight = {
+    ...base,
+    fees: { avosend: { fix: 1499, percent: 1.5 } },
+    quotes: {
+      ...base.quotes,
+      "rubPerUsd.avosend": { ...base.quotes["rubPerUsd.avosend"], value: 250.5 },
+    },
+  };
+  const squeezed = ratesCard(tight);
+
+  assert.ok(squeezed.includes(">exp</text>"), "the warning survives");
+  assert.ok(
+    !squeezed.includes("fee 1499₽ + 1.5%"),
+    "the fee chip is dropped instead of overlapping the number"
+  );
 });
 
 test("card highlights the best cell of every table", () => {

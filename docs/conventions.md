@@ -30,6 +30,7 @@ modules read the snapshot and nothing else.
 | `src/image.ts`       | resvg rasterisation and the per-update PNG cache              |
 | `src/bot.ts`         | grammY handlers, sum parsing, card `file_id` reuse            |
 | `src/db.ts`          | json-db init and the oversized-file guard                     |
+| `src/session.ts`     | mints and caches the MultiTransfer antifraud session in headless chromium |
 | `src/env.ts`         | loads `.env` and exposes every environment variable           |
 | `src/result.ts`      | the shared neverthrow adapters (zod, promises) every boundary uses |
 
@@ -132,9 +133,11 @@ No token, session id, or path literal in the source: `src/env.ts` is the only
 module that touches `process.env`, and it loads `.env` on import so importers
 never race the loader. A new variable goes into `env`, into `.env.example`, and
 into the README table; `.env` itself stays gitignored, and production passes it
-with `docker run --env-file`. Missing credentials degrade — MultiTransfer
-reports a `session` failure rather than throwing — except `BOT_TOKEN`, without
-which the process cannot start.
+with `docker run --env-file`. Missing configuration degrades — with no
+`CHROMIUM_PATH` to mint with, MultiTransfer reports a `session` failure rather
+than throwing — except `BOT_TOKEN`, without which the process cannot start.
+The image sets `CHROMIUM_PATH` itself, so nothing but the token is required to
+run it.
 
 ## Persistence
 
@@ -154,5 +157,8 @@ explain is dropped rather than passed to the formatters.
 - `npm test` — offline unit tests on recorded fixtures; must pass.
 - `npm run build` — the production bundle must compile clean.
 - `npm run probe` — hits the five live endpoints and prints what parsed; the
-  only check that catches a source that changed shape or an expired
-  MultiTransfer session ([ADR 0001](adr/0001-multitransfer-antifraud-session.md)).
+  only check that catches a source that changed shape or a MultiTransfer mint
+  the antifraud has started refusing
+  ([ADR 0001](adr/0001-multitransfer-antifraud-session.md)). It is bundled into
+  the image too, so a deployed container answers the same question with
+  `node probe.cjs`.

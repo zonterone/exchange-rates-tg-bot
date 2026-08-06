@@ -12,7 +12,9 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const config: webpack.Configuration = {
   mode: isDev ? "development" : "production",
   target: "node",
-  entry: { main: "./src/main.ts" },
+  // probe ships with the bot: the image carries no node_modules, so checking a
+  // live source on the server is only possible if it is bundled too
+  entry: { main: "./src/main.ts", probe: "./scripts/probe.ts" },
   output: {
     filename: "[name].cjs",
     path: path.resolve(dir, "dist"),
@@ -23,7 +25,15 @@ const config: webpack.Configuration = {
   // a native addon cannot be bundled, it is copied into the image instead
   externals: {
     "@resvg/resvg-js": "commonjs @resvg/resvg-js",
+    // puppeteer's optional accelerators and proxy support: each is required
+    // inside a try/catch, so a require that throws is what they already expect
+    bufferutil: "commonjs bufferutil",
+    "utf-8-validate": "commonjs utf-8-validate",
+    "proxy-agent": "commonjs proxy-agent",
   },
+  // yargs assembles a require path at runtime for the @puppeteer/browsers cli,
+  // which nothing here calls; webpack cannot see that and warns regardless
+  ignoreWarnings: [{ module: /node_modules\/yargs/ }],
   module: {
     rules: [
       {
@@ -32,7 +42,8 @@ const config: webpack.Configuration = {
       },
     ],
   },
-  plugins: [new NodemonPlugin()],
+  // two entries, but only one of them is the bot nodemon should restart
+  plugins: [new NodemonPlugin({ script: "./dist/main.cjs" })],
   optimization: {
     minimizer: [
       new TerserPlugin({
