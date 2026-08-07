@@ -363,6 +363,20 @@ test("shows a 24h delta and a 7d average once history allows it", () => {
   assert.match(line, /82\.63\s+-0\.44\s+83\.08/);
 });
 
+test("a lari move is read at the precision the lari rate is quoted at", () => {
+  const history = [
+    { key: "gelPerUsd.kursi", value: 2.6155, updatedDate: now - day },
+    { key: "gelPerUsd.kursi", value: 2.619, updatedDate: now },
+  ];
+
+  const line = block(ratesMessage(snapshot({ history }), now))
+    .split("\n")
+    .find((row) => row.startsWith("Kursi"));
+
+  // three decimals would round this move to "+0.004", or hide a smaller one
+  assert.match(line, /2\.6190\s+\+0\.0035\s/);
+});
+
 test("a rate that held reads as zero, not as missing history", () => {
   const history = [
     { key: "rubPerUsd.unired", value: 82.63, updatedDate: now - day },

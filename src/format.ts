@@ -19,11 +19,6 @@ const rateDecimals: Record<Unit, number> = {
   gelPerUsd: 4,
   rubPerGel: 2,
 };
-const deltaDecimals: Record<Unit, number> = {
-  rubPerUsd: 2,
-  gelPerUsd: 3,
-  rubPerGel: 2,
-};
 
 export const valueOf = (snapshot: Snapshot, id: RateId) =>
   snapshot.quotes[id]?.value;
@@ -97,7 +92,9 @@ export const deltaCell = (snapshot: Snapshot, id: RateId) => {
   );
   if (delta === null) return noTrend;
 
-  const decimals = deltaDecimals[unitOf(id)];
+  // a delta is a difference of two rates, so it is read at the precision the
+  // rate is quoted at — a coarser one would hide a move the rate itself shows
+  const decimals = rateDecimals[unitOf(id)];
   const value = delta.toFixed(decimals);
   // a move that rounds to zero held: it loses the sign and the colour, but not
   // the cell — "—" would claim there was nothing to compare against
