@@ -64,7 +64,7 @@ const chipGap = 6;
 // the best-rate plate bleeds this far past its number on either side, so the
 // name column has to stop short of it and not just of the digits
 const plateAir = 5;
-const rowStep = 21;
+const rowStep = 23;
 const headerGap = 21;
 const headerToRow = 24;
 // air around a divider, counted in ink rather than baselines: above it a row
