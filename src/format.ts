@@ -97,9 +97,11 @@ export const deltaCell = (snapshot: Snapshot, id: RateId) => {
   );
   if (delta === null) return noTrend;
 
-  const value = delta.toFixed(deltaDecimals[unitOf(id)]);
-  // a move that rounds to zero is no move: "+0.00" in red would say otherwise
-  if (Number(value) === 0) return noTrend;
+  const decimals = deltaDecimals[unitOf(id)];
+  const value = delta.toFixed(decimals);
+  // a move that rounds to zero held: it loses the sign and the colour, but not
+  // the cell — "—" would claim there was nothing to compare against
+  if (Number(value) === 0) return (0).toFixed(decimals);
 
   return delta > 0 ? `+${value}` : value;
 };

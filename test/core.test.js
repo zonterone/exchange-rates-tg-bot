@@ -363,6 +363,33 @@ test("shows a 24h delta and a 7d average once history allows it", () => {
   assert.match(line, /82\.63\s+-0\.44\s+83\.08/);
 });
 
+test("a rate that held reads as zero, not as missing history", () => {
+  const history = [
+    { key: "rubPerUsd.unired", value: 82.63, updatedDate: now - day },
+    { key: "rubPerUsd.unired", value: 82.63, updatedDate: now },
+  ];
+
+  const line = block(ratesMessage(snapshot({ history }), now))
+    .split("\n")
+    .find((row) => row.startsWith("Unrd"));
+
+  assert.match(line, /82\.63\s+0\.00\s/);
+});
+
+test("a move too small to show still reads as zero without a sign", () => {
+  const history = [
+    { key: "rubPerUsd.unired", value: 82.634, updatedDate: now - day },
+    { key: "rubPerUsd.unired", value: 82.63, updatedDate: now },
+  ];
+
+  const line = block(ratesMessage(snapshot({ history }), now))
+    .split("\n")
+    .find((row) => row.startsWith("Unrd"));
+
+  // -0.004 rounds to "-0.00": a minus sign on a rate that did not move
+  assert.match(line, /82\.63\s+0\.00\s/);
+});
+
 test("marks carried over quotes and explains why", () => {
   const stale = snapshot({
     quotes: {
