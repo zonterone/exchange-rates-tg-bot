@@ -1,0 +1,14 @@
+{
+  "components": [
+    {
+      "snapshot": "{\"data\":{\"country\":\"GEO\",\"currency\":\"USD\",\"amount\":\"100\",\"kwikCardCompare\":false,\"kwikCardLink\":false,\"horizontal\":false,\"partner\":null,\"primaryColor\":null,\"frame\":false,\"fee\":[{\"name\":\"\\u041f\\u043e\\u043f\\u043e\\u043b\\u043d\\u0435\\u043d\\u0438\\u0435 \\u043a\\u0430\\u0440\\u0442 VISA, \\u0423\\u043d\\u0438\\u0432\\u0435\\u0440\\u0441\\u0430\\u043b\\u0431\\u0430\\u043d\\u043a \",\"acceptedAmount\":8639.8,\"acceptedTransferAmount\":8537.35,\"acceptedCurrency\":\"RUB\",\"withdrawAmount\":100,\"withdrawCurrency\":\"USD\",\"rate\":0.0117132420309544,\"acceptedTotalFee\":102.45,\"acceptedTotalFeeCurrency\":\"RUB\",\"nspkCommis\":null},{\"s\":\"arr\"}],\"feeCompare\":null,\"maintenance\":null},\"memo\":{\"id\":\"FDXbMVhlmJBfyXO7xQlo\",\"name\":\"online-calculator\",\"path\":\"\\/\",\"method\":\"GET\",\"release\":\"a-a-a\",\"children\":[],\"scripts\":[],\"assets\":[],\"errors\":[],\"locale\":\"ru\",\"islands\":[]},\"checksum\":\"fdc79f6e0556aba0dc5fcc768c2a1d9dabb6cbca7762f24395fceb208d9c8cb1\"}",
+      "effects": {
+        "returns": [
+          null,
+          null
+        ]
+      }
+    }
+  ],
+  "assets": []
+}

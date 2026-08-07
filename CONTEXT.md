@@ -28,7 +28,7 @@ _Avoid_: cross rate, official rate
 
 **Transfer provider**:
 A service that moves roubles out of Russia and pays out dollars in Georgia
-(Unired, MultiTransfer, Avosend). Quotes the `₽ → $` leg.
+(Unired, MultiTransfer, Avosend, KwikPay). Quotes the `₽ → $` leg.
 _Avoid_: bank, exchanger, service
 
 **Exchange point**:
@@ -69,9 +69,30 @@ treated as missing rather than displayed.
 _Avoid_: validation, bounds
 
 **Fee**:
-A charge on top of the transfer rate (Avosend takes a fixed 79 ₽). Reported next
-to the rate, never folded into it — the comparison stays a comparison of rates.
+A charge a transfer provider takes besides the rate it quotes. Where it is
+reported depends on its **fee mode**, and every provider declares one:
+
+- `onTop` — a fixed charge (Avosend takes 79 ₽). It cannot be expressed as a
+  rate, because what it costs depends on the sum, so it stays next to the rate
+  and never enters it. Every number the bot shows for that provider is
+  therefore optimistic, and says so.
+- `inRate` — a proportional charge (KwikPay takes 1.2%). It is a rate by
+  another name, so it is folded into the quote once, at the provider: the
+  number shown is what a dollar actually costs, at any sum. The consequence is
+  deliberate — our KwikPay rate is higher than the one on kwikpay.ru, which
+  quotes the rate before its own commission.
+- `none` — the quote is the whole cost.
+
+The mode is what keeps a folded fee from being charged twice downstream.
 _Avoid_: commission, markup
+
+**Fee mark**:
+How a row says a fee exists: the chip beside the name on the card (`fee 79₽`
+for one charged on top, `incl 1.2%` for one already inside the rate) and the
+`*` beside the short name in a text table, spelled out in a line under it.
+Both name one concept, and which of the two words appears is decided by the fee
+mode alone.
+_Avoid_: asterisk, footnote, badge
 
 ### Failures
 

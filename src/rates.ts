@@ -2,6 +2,7 @@ export const rateIds = [
   "rubPerUsd.unired",
   "rubPerUsd.multitransfer",
   "rubPerUsd.avosend",
+  "rubPerUsd.kwikpay",
   "rubPerUsd.cbr",
   "gelPerUsd.kursi",
   "gelPerUsd.bog",
@@ -18,6 +19,7 @@ export const providerNames = [
   "unired",
   "multitransfer",
   "avosend",
+  "kwikpay",
   "kursi",
   "cbr",
 ] as const;
@@ -25,6 +27,22 @@ export const providerNames = [
 export type ProviderName = (typeof providerNames)[number];
 
 export type Fee = { fix: number; percent: number };
+
+// where a source's fee sits relative to the rate it quotes: onTop is billed
+// beside the number and leaves it optimistic (Avosend adds 79 ₽ to any sum),
+// inRate is already inside the number because a proportional fee is a rate by
+// another name (KwikPay takes 1.2%). Every source answers this once, and that
+// is what keeps a folded fee from being charged a second time downstream
+export type FeeMode = "none" | "onTop" | "inRate";
+
+export const feeModeOf: Record<ProviderName, FeeMode> = {
+  unired: "none",
+  multitransfer: "none",
+  avosend: "onTop",
+  kwikpay: "inRate",
+  kursi: "none",
+  cbr: "none",
+};
 
 export type Quote = { value: number; updatedDate: number };
 
@@ -59,6 +77,7 @@ export const providerOf: Record<RateId, ProviderName> = {
   "rubPerUsd.unired": "unired",
   "rubPerUsd.multitransfer": "multitransfer",
   "rubPerUsd.avosend": "avosend",
+  "rubPerUsd.kwikpay": "kwikpay",
   "rubPerUsd.cbr": "cbr",
   "gelPerUsd.kursi": "kursi",
   "gelPerUsd.bog": "kursi",
@@ -110,6 +129,7 @@ export const transfers: Entry[] = [
   { id: "rubPerUsd.unired", label: "Unired", short: "Unrd" },
   { id: "rubPerUsd.multitransfer", label: "MultiTransfer", short: "MltTr" },
   { id: "rubPerUsd.avosend", label: "Avosend", short: "Avsnd" },
+  { id: "rubPerUsd.kwikpay", label: "KwikPay", short: "Kwik" },
 ];
 
 export const exchanges: Entry[] = [

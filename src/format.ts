@@ -1,6 +1,14 @@
 import { match, P } from "ts-pattern";
 
-import { unitOf, type Fee, type RateId, type Snapshot, type Unit } from "./rates";
+import {
+  feeModeOf,
+  providerOf,
+  unitOf,
+  type Fee,
+  type RateId,
+  type Snapshot,
+  type Unit,
+} from "./rates";
 import { dayDelta, weekAverage } from "./trend";
 
 export const rub = "₽";
@@ -37,18 +45,32 @@ export const freshValueOf = (snapshot: Snapshot, id: RateId) => {
   return quote.value;
 };
 
-// avosend is the only source that charges a fee on top of its rate
-export const feeId: RateId = "rubPerUsd.avosend";
-
-export const feeOf = (snapshot: Snapshot) => {
-  const fee = snapshot.fees["avosend"];
+// a fee belongs to the source, so it is the row of the rate that source quotes
+// which carries it
+export const feeOf = (snapshot: Snapshot, id: RateId) => {
+  const fee = snapshot.fees[providerOf[id]];
   if (!fee || (fee.fix === 0 && fee.percent === 0)) return null;
 
   return fee;
 };
 
 export const feeText = (fee: Fee) =>
-  `${fee.fix}${rub}${fee.percent > 0 ? ` + ${fee.percent}%` : ""}`;
+  [fee.fix > 0 ? `${fee.fix}${rub}` : "", fee.percent > 0 ? `${fee.percent}%` : ""]
+    .filter(Boolean)
+    .join(" + ");
+
+// what the card chip says, and what decides whether a text row is marked at
+// all: a fee on top is still to be paid, a fee in the rate is already counted
+export const feeChip = (snapshot: Snapshot, id: RateId) => {
+  const fee = feeOf(snapshot, id);
+  if (!fee) return null;
+
+  return match(feeModeOf[providerOf[id]])
+    .with("none", () => null)
+    .with("onTop", () => `fee ${feeText(fee)}`)
+    .with("inRate", () => `incl ${feeText(fee)}`)
+    .exhaustive();
+};
 
 export const group = (value: string) => {
   const [integer = "", fraction] = value.split(".");

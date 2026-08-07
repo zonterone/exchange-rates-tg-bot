@@ -2,7 +2,7 @@ import {
   amount,
   averageCell,
   deltaCell,
-  feeId,
+  feeChip,
   feeOf,
   feeText,
   formatSum,
@@ -21,6 +21,7 @@ import { match } from "ts-pattern";
 import {
   direct,
   exchanges,
+  feeModeOf,
   providerOf,
   transfers,
   type Entry,
@@ -44,16 +45,26 @@ const transferRows = [...providers(transfers), ...references(transfers)];
 const exchangeRows = [...providers(exchanges), ...references(exchanges)];
 
 const label = (entry: Entry, snapshot: Snapshot) =>
-  entry.id === feeId && feeOf(snapshot)
-    ? `${entry.short}${feeMark}`
-    : entry.short;
+  feeChip(snapshot, entry.id) ? `${entry.short}${feeMark}` : entry.short;
 
-const feeNote = (snapshot: Snapshot, suffix: string) => {
-  const fee = feeOf(snapshot);
-  if (!fee) return [];
+// one line per source that charges a fee. Only a fee billed on top can be
+// missing from the numbers above, so only it takes the suffix — a folded one
+// says so instead, or a reader would subtract it a second time by hand
+const feeNote = (snapshot: Snapshot, suffix: string) =>
+  providers(transfers).flatMap((entry) => {
+    const fee = feeOf(snapshot, entry.id);
+    if (!fee) return [];
 
-  return [`${feeMark} Avsnd fee ${feeText(fee)}${suffix}`];
-};
+    return match(feeModeOf[providerOf[entry.id]])
+      .with("none", () => [])
+      .with("onTop", () => [
+        `${feeMark} ${entry.short} fee ${feeText(fee)}${suffix}`,
+      ])
+      .with("inRate", () => [
+        `${feeMark} ${entry.short} fee ${feeText(fee)} (included in rate)`,
+      ])
+      .exhaustive();
+  });
 
 // why a rate is missing or old; no failure at all means the source answered
 // but had nothing for this particular rate

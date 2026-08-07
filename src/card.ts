@@ -4,9 +4,7 @@ import {
   amount,
   averageCell,
   deltaCell,
-  feeId,
-  feeOf,
-  feeText,
+  feeChip,
   freshValueOf,
   gel,
   isStale,
@@ -233,18 +231,19 @@ export const ratesCard = (snapshot: Snapshot) => {
     columnsRow(y + headerGap, columns);
   };
 
-  const fee = feeOf(snapshot);
-
   // exp says the number is not from this update and comes first because it is
   // the only chip that changes how far the number can be trusted; direct is a
-  // rate that skips the chain, fee is a cost the rate hides
-  const chipsOf = (entry: Entry) => [
-    ...(isStale(snapshot, entry.id) ? [{ text: "exp", warn: true }] : []),
-    ...(entry.id === direct.id ? [{ text: "direct", warn: false }] : []),
-    ...(entry.id === feeId && fee
-      ? [{ text: `fee ${feeText(fee)}`, warn: false }]
-      : []),
-  ];
+  // rate that skips the chain; fee names a cost the rate leaves out, incl one
+  // it already carries
+  const chipsOf = (entry: Entry) => {
+    const fee = feeChip(snapshot, entry.id);
+
+    return [
+      ...(isStale(snapshot, entry.id) ? [{ text: "exp", warn: true }] : []),
+      ...(entry.id === direct.id ? [{ text: "direct", warn: false }] : []),
+      ...(fee ? [{ text: fee, warn: false }] : []),
+    ];
+  };
 
   // the name column ends where the row's own number begins, and a chip that
   // would cross that line is dropped rather than drawn over the rate — which

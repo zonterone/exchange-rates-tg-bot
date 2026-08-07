@@ -3,7 +3,8 @@
 Bot updates rates every 30 minutes and saves them to a db.json file. It watches
 the Georgia direction in two legs and the chain between them:
 
-- **₽ → $** money transfer rates: Unired, MultiTransfer, Avosend (CBR for reference)
+- **₽ → $** money transfer rates: Unired, MultiTransfer, Avosend, KwikPay (CBR
+  for reference)
 - **$ → ₾** exchange rates: kursi.ge, Bank of Georgia, TBC (NBG for reference)
 - **₽ → ₾** every transfer/exchange combination, so the cheapest route is
   visible, with the CBR direct rate beside it
@@ -135,7 +136,7 @@ npm run start:dev
 | `npm start`             | production build, then run it                       |
 | `npm test`              | unit tests on recorded provider responses (offline) |
 | `npm run test:coverage` | same tests with a coverage report                   |
-| `npm run probe`         | hits all five live endpoints and prints what parsed |
+| `npm run probe`         | hits every live endpoint and prints what parsed     |
 | `npm run build`         | production bundle to `dist/main.cjs`                |
 
 ## Docs

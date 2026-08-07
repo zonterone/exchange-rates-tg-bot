@@ -48,7 +48,12 @@ modules read the snapshot and nothing else.
    sanity range there).
 4. Add an entry to `transfers` or `exchanges` in `src/rates.ts` — that registry
    is what both renderers read. A provider missing from it is fetched, stored
-   and never shown.
+   and never shown. Its name also goes into `feeModeOf` there: `none` unless it
+   charges a fee, `onTop` for a fixed one that stays beside the rate, `inRate`
+   for a proportional one the `parse` has already folded into the quote (see
+   the Fee entry in `CONTEXT.md`). The record is closed, so the compiler asks
+   the question — and the answer is what keeps a folded fee from being added a
+   second time in a note or a sum.
 5. `fetch` returns `ResultAsync<Payload, Failure>` and never rejects: a request
    that fails is `err("unavailable")`, an antifraud rejection is
    `err("session")`, an unreadable answer is `err("shape")`.
@@ -156,9 +161,12 @@ explain is dropped rather than passed to the formatters.
 
 - `npm test` — offline unit tests on recorded fixtures; must pass.
 - `npm run build` — the production bundle must compile clean.
-- `npm run probe` — hits the five live endpoints and prints what parsed; the
+- `npm run probe` — hits every live endpoint and prints what parsed; the
   only check that catches a source that changed shape or a MultiTransfer mint
   the antifraud has started refusing
-  ([ADR 0001](adr/0001-multitransfer-antifraud-session.md)). It is bundled into
-  the image too, so a deployed container answers the same question with
+  ([ADR 0001](adr/0001-multitransfer-antifraud-session.md)). It also asks
+  KwikPay for two different sums: its commission is folded into the rate, which
+  only stays honest while that commission is proportional, and one sum can
+  never show a fixed part riding along inside the rate. It is bundled into the
+  image too, so a deployed container answers the same question with
   `node probe.cjs`.

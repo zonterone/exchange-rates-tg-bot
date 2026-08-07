@@ -25,6 +25,9 @@ const { amountMessage, cold, ratesCaption, ratesMessage } = await import(
 const { parse: parseAvosend } = await import("../src/providers/avosend");
 const { parse: parseCbr } = await import("../src/providers/cbr");
 const { parse: parseKursi } = await import("../src/providers/kursi");
+const { bootstrap: bootstrapKwikpay, parse: parseKwikpay } = await import(
+  "../src/providers/kwikpay"
+);
 const { multitransfer, parse: parseMultitransfer } = await import(
   "../src/providers/multitransfer"
 );
@@ -55,6 +58,7 @@ const snapshot = (overrides = {}) => ({
     "rubPerUsd.unired": 82.63,
     "rubPerUsd.multitransfer": 83.46,
     "rubPerUsd.avosend": 85.05,
+    "rubPerUsd.kwikpay": 86.4,
     "rubPerUsd.cbr": 81.13,
     "gelPerUsd.kursi": 2.619,
     "gelPerUsd.bog": 2.595,
@@ -62,7 +66,10 @@ const snapshot = (overrides = {}) => ({
     "gelPerUsd.nbg": 2.6239,
     "rubPerGel.cbr": 30.91,
   }),
-  fees: { avosend: { fix: 79, percent: 0 } },
+  fees: {
+    avosend: { fix: 79, percent: 0 },
+    kwikpay: { fix: 0, percent: 1.2 },
+  },
   failures: {},
   history: [],
   ...overrides,
@@ -134,6 +141,22 @@ test("parses every provider from a live response fixture", () => {
     "rubPerUsd.cbr": 81.1291,
     "rubPerGel.cbr": 30.9075,
   });
+  // 8639.80₽ for 100$, of which 102.45₽ is the commission — the rate carries
+  // it, so it is the whole rouble side and not the 85.3735 KwikPay quotes
+  assert.deepEqual(parseKwikpay(json("kwikpay.json"))._unsafeUnwrap(), {
+    rates: { "rubPerUsd.kwikpay": 86.398 },
+    fee: { fix: 0, percent: 1.2 },
+  });
+});
+
+test("reads the livewire endpoint and the calculator snapshot off the page", () => {
+  const page = bootstrapKwikpay(fixture("kwikpay.html"))._unsafeUnwrap();
+
+  assert.equal(page.uri, "https://kwikpay.ru/livewire-e3174bb1/update");
+  // the snapshot travels back html-unescaped, and it is the calculator's own
+  // rather than that of any other livewire component on the page
+  assert.match(page.snapshot, /"name":"online-calculator"/);
+  assert.match(page.snapshot, /"checksum":"[0-9a-f]{64}"/);
 });
 
 test("reports a shape change when nothing readable comes back", () => {
@@ -158,6 +181,18 @@ test("reports a shape change when nothing readable comes back", () => {
   );
   assert.equal(reason(parseKursi([{ baseCurrencyCode: "GEL" }])), "shape");
   assert.equal(reason(parseCbr({ Valute: {} })), "shape");
+  assert.equal(reason(bootstrapKwikpay("<html>no calculator</html>")), "shape");
+  assert.equal(reason(parseKwikpay({ components: [] })), "shape");
+  assert.equal(
+    reason(parseKwikpay({ components: [{ snapshot: "not json" }] })),
+    "shape"
+  );
+  // a sum outside the calculator's limits comes back calculated but empty:
+  // nothing to read is a shape change, not a rate of zero
+  assert.equal(
+    reason(parseKwikpay({ components: [{ snapshot: '{"data":{"fee":null}}' }] })),
+    "shape"
+  );
 });
 
 test("a rate that still reads is a success, not a shape change", () => {
@@ -318,6 +353,7 @@ test("renders rates with legs, chain matrix and the best chain", () => {
       "Unrd     82.63      —      —",
       "MltTr    83.46      —      —",
       "Avsnd*   85.05      —      —",
+      "Kwik*    86.40      —      —",
       "CBR      81.13      —      —",
       "",
       "$ → ₾  ₾/1$ · higher better",
@@ -332,9 +368,13 @@ test("renders rates with legs, chain matrix and the best chain", () => {
       "Unrd     31.55  31.84  31.84",
       "MltTr    31.87  32.16  32.16",
       "Avsnd*   32.47  32.77  32.77",
+      "Kwik*    32.99  33.29  33.29",
     ].join("\n")
   );
   assert.match(message, /\* Avsnd fee 79₽/);
+  // the same mark, two opposite stories: one fee is still to be paid, the
+  // other is already inside the number it sits beside
+  assert.match(message, /\* Kwik fee 1\.2% \(included in rate\)/);
   assert.match(message, /CBR direct — 30\.91₽ per 1₾/);
   assert.match(message, /Best: Unrd → Kursi — 31\.55₽ per 1₾/);
   assert.match(
@@ -765,11 +805,11 @@ test("card drops the lesser chip rather than draw it over the rate", () => {
   assert.ok(roomy.includes(">exp</text>"), "the warning is drawn");
   assert.ok(roomy.includes(">fee 79₽</text>"), "and so is the fee beside it");
 
-  // a wordier fee and a three-digit rouble rate — both within what the
-  // validator allows — leave the name column no room for two chips
+  // the widest fee the validator still accepts and a three-digit rouble rate
+  // leave the name column no room for two chips
   const tight = {
     ...base,
-    fees: { avosend: { fix: 1499, percent: 1.5 } },
+    fees: { avosend: { fix: 9999.99, percent: 99.99 } },
     quotes: {
       ...base.quotes,
       "rubPerUsd.avosend": { ...base.quotes["rubPerUsd.avosend"], value: 250.5 },
@@ -779,9 +819,25 @@ test("card drops the lesser chip rather than draw it over the rate", () => {
 
   assert.ok(squeezed.includes(">exp</text>"), "the warning survives");
   assert.ok(
-    !squeezed.includes("fee 1499₽ + 1.5%"),
+    !squeezed.includes("fee 9999.99₽ + 99.99%"),
     "the fee chip is dropped instead of overlapping the number"
   );
+});
+
+test("a fee in the rate is marked apart from a fee charged on top of it", () => {
+  const svg = ratesCard(snapshot());
+
+  assert.ok(svg.includes(">fee 79₽</text>"), "Avosend bills its 79₽ beside the rate");
+  assert.ok(
+    svg.includes(">incl 1.2%</text>"),
+    "KwikPay's 1.2% is already inside the rate above it"
+  );
+
+  // the same distinction in the text tables, where it decides whether a reader
+  // still has to subtract the fee by hand
+  const message = amountMessage("sendRub", 10000, snapshot());
+  assert.match(message, /\* Avsnd fee 79₽ \(not included\)/);
+  assert.match(message, /\* Kwik fee 1\.2% \(included in rate\)/);
 });
 
 test("card highlights the best cell of every table", () => {

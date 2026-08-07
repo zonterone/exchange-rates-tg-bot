@@ -134,3 +134,13 @@ for ED25519 "HomeLab" from agent: communication with agent failed`, while
 not — a locked 1Password agent answers the first and refuses the second, and
 its unlock prompt never surfaces for a background process. Unlock 1Password
 before any ssh step rather than reading the error as a key problem.
+
+## 2026-08-07 15:40 — claude-opus-5
+
+Writing the KwikPay parse, `z.array(...).nonempty()` looked like the way to
+index `[0]` without a guard. In zod v4 `nonempty()` returns `this`, so the
+inferred type stays `T[]` — unlike zod v3, which narrowed it to `[T, ...T[]]`.
+Under `noUncheckedIndexedAccess` the element is still `T | undefined` and the
+check comes back anyway. Reach for a plain `array()` plus an explicit
+`if (x === undefined) return err("shape")` instead of the runtime check that
+buys no types.
