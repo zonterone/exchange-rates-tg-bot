@@ -125,3 +125,12 @@ takes the process down under Node's default `--unhandled-rejections=throw`.
 Nothing in a `ResultAsync` chain catches it, because the rejection is not in
 that chain. Await the two together with `Promise.all` — it subscribes to both
 synchronously, so neither can be orphaned.
+
+## 2026-08-07 12:20 — claude-opus-5
+
+Deploying to homeLab over ssh died with `sign_and_send_pubkey: signing failed
+for ED25519 "HomeLab" from agent: communication with agent failed`, while
+`ssh-add -l` happily listed the key. The key list is cached; the signature is
+not — a locked 1Password agent answers the first and refuses the second, and
+its unlock prompt never surfaces for a background process. Unlock 1Password
+before any ssh step rather than reading the error as a key problem.
