@@ -151,3 +151,13 @@ Rendering a throwaway card preview from a scratch script under `/tmp`, the
 relative imports (`../src/card`) resolved against the script's own directory,
 not the repo — tsx reported `Cannot find module`. A one-off render script needs
 absolute paths to `src/`, or it has to sit inside the repo to import anything.
+
+## 2026-08-10 16:55 — claude-opus-5
+
+Right after deploying a release that adds a rate id, `/rates` showed the new row
+as `n/a` and it read like a broken parser. The card renders from the new
+registry immediately, but the stored snapshot in the db volume is still the one
+the previous image wrote — it has no key for the new id until the first update
+cycle lands, and that cycle waits on the MultiTransfer session mint (~20s from
+container start). Give the bot a cycle before diagnosing a missing rate, and
+check `db.json` for the key before suspecting the provider.
