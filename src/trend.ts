@@ -8,16 +8,18 @@ const week = 7 * day;
 // how far around "24 hours ago" we look for points to average
 const window = hour;
 const historyMaxAge = 8 * day;
-const minWeekPoints = 24;
+// days of the week that have to carry a quote before the week is worth reading,
+// and how far back one of them has to sit
+const minWeekDays = 5;
 
 const pointsOf = (history: HistoryPoint[], id: RateId) =>
   history.filter((point) => point.key === id);
 
-const average = (points: HistoryPoint[]) => {
-  if (points.length === 0) return null;
+const average = (values: number[]) => {
+  if (values.length === 0) return null;
 
-  const sum = points.reduce((total, point) => total + point.value, 0);
-  return sum / points.length;
+  const sum = values.reduce((total, value) => total + value, 0);
+  return sum / values.length;
 };
 
 // the stored history is a boundary like a provider response: whether a point
@@ -52,31 +54,49 @@ export const dayDelta = (
   asOf: number
 ) => {
   const previous = average(
-    pointsOf(history, id).filter((point) => {
-      return (
-        point.updatedDate >= asOf - day - window &&
-        point.updatedDate <= asOf - day + window
-      );
-    })
+    pointsOf(history, id)
+      .filter((point) => {
+        return (
+          point.updatedDate >= asOf - day - window &&
+          point.updatedDate <= asOf - day + window
+        );
+      })
+      .map((point) => point.value)
   );
   if (previous === null) return null;
 
   return current - previous;
 };
 
-export const weekAverage = (
+// how far the rate sits from the week behind it: measured against the weekly
+// average rather than a single point seven days back, so one outlier cannot
+// invent a move the week never made. The week is averaged a day at a time —
+// a source that flaps leaves whole stretches of history empty, and a plain
+// mean would then weigh the hours it answered in against the days it did not
+export const weekDelta = (
   history: HistoryPoint[],
   id: RateId,
+  current: number,
   asOf: number
 ) => {
-  const recent = pointsOf(history, id).filter((point) => {
-    return point.updatedDate >= asOf - week && point.updatedDate <= asOf;
-  });
-  if (recent.length < minWeekPoints) return null;
+  const points = pointsOf(history, id);
+  const daily = Array.from({ length: week / day }, (_, index) =>
+    average(
+      points
+        .filter((point) => {
+          const age = asOf - point.updatedDate;
+          return age >= index * day && age < (index + 1) * day;
+        })
+        .map((point) => point.value)
+    )
+  ).flatMap((value, index) => (value === null ? [] : [{ index, value }]));
 
-  // an average over the last few hours is not a weekly average
-  const spansWeek = recent.some((point) => point.updatedDate <= asOf - 6 * day);
-  if (!spansWeek) return null;
+  if (daily.length < minWeekDays) return null;
+  // an average over the last few days is not a weekly average
+  if (!daily.some((point) => point.index >= minWeekDays)) return null;
 
-  return average(recent);
+  const weekly =
+    daily.reduce((total, point) => total + point.value, 0) / daily.length;
+
+  return current - weekly;
 };

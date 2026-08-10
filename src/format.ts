@@ -9,7 +9,7 @@ import {
   type Snapshot,
   type Unit,
 } from "./rates";
-import { dayDelta, weekAverage } from "./trend";
+import { dayDelta, weekDelta } from "./trend";
 
 export const rub = "₽";
 export const usd = "$";
@@ -101,21 +101,11 @@ export const rateCell = (snapshot: Snapshot, id: RateId) => {
   return value.toFixed(rateDecimals[unitOf(id)]);
 };
 
-export const deltaCell = (snapshot: Snapshot, id: RateId) => {
-  const quote = snapshot.quotes[id];
-  if (!quote) return noTrend;
-  if (isStale(snapshot, id)) return staleMark;
-
-  const delta = dayDelta(
-    snapshot.history,
-    id,
-    quote.value,
-    snapshot.updatedDate
-  );
+// a delta is a difference of two rates, so it is read at the precision the
+// rate is quoted at — a coarser one would hide a move the rate itself shows
+const signed = (id: RateId, delta: number | null) => {
   if (delta === null) return noTrend;
 
-  // a delta is a difference of two rates, so it is read at the precision the
-  // rate is quoted at — a coarser one would hide a move the rate itself shows
   const decimals = rateDecimals[unitOf(id)];
   const value = delta.toFixed(decimals);
   // a move that rounds to zero held: it loses the sign and the colour, but not
@@ -125,11 +115,31 @@ export const deltaCell = (snapshot: Snapshot, id: RateId) => {
   return delta > 0 ? `+${value}` : value;
 };
 
-export const averageCell = (snapshot: Snapshot, id: RateId) => {
-  const value = weekAverage(snapshot.history, id, snapshot.updatedDate);
-  if (value === null) return noTrend;
+export const deltaCell = (snapshot: Snapshot, id: RateId) => {
+  const quote = snapshot.quotes[id];
+  if (!quote) return noTrend;
+  if (isStale(snapshot, id)) return staleMark;
 
-  return value.toFixed(rateDecimals[unitOf(id)]);
+  return signed(
+    id,
+    dayDelta(snapshot.history, id, quote.value, snapshot.updatedDate)
+  );
+};
+
+// the week is read from the same quote the day is, stale or not: how far the
+// number sits from its week holds whether or not this cycle refreshed it, and
+// the exp chip beside the name already says which. It is read as of the moment
+// the quote is from, though — a source that stopped answering stopped adding
+// history too, so a window ending now would measure it against days it was
+// never quoted in
+export const weekCell = (snapshot: Snapshot, id: RateId) => {
+  const quote = snapshot.quotes[id];
+  if (!quote) return noTrend;
+
+  return signed(
+    id,
+    weekDelta(snapshot.history, id, quote.value, quote.updatedDate)
+  );
 };
 
 // a rising rouble price is bad news, a rising lari price is good news; a cell

@@ -374,7 +374,7 @@ test("renders rates with legs, chain matrix and the best chain", () => {
     block(message),
     [
       "₽ → $  ₽/1$ · lower better",
-      "           now    24h     7d",
+      "           now    24h  vs 7d",
       "Unrd     82.63      —      —",
       "MTCard   83.46      —      —",
       "MTCash   83.56      —      —",
@@ -383,7 +383,7 @@ test("renders rates with legs, chain matrix and the best chain", () => {
       "CBR      81.13      —      —",
       "",
       "$ → ₾  ₾/1$ · higher better",
-      "           now    24h     7d",
+      "           now    24h  vs 7d",
       "Kursi   2.6190      —      —",
       "BoG     2.5950      —      —",
       "TBC     2.5950      —      —",
@@ -411,7 +411,7 @@ test("renders rates with legs, chain matrix and the best chain", () => {
   assert.doesNotMatch(message, /KoronaPay/);
 });
 
-test("shows a 24h delta and a 7d average once history allows it", () => {
+test("shows a 24h move and the distance from the week once history allows it", () => {
   const history = [
     ...Array.from({ length: 28 }, (_, index) => ({
       key: "rubPerUsd.unired",
@@ -427,7 +427,8 @@ test("shows a 24h delta and a 7d average once history allows it", () => {
     .split("\n")
     .find((row) => row.startsWith("Unrd"));
 
-  assert.match(line, /82\.63\s+-0\.44\s+83\.08/);
+  // the week averages 83.08, so the rate reads 0.45 below it — not the average
+  assert.match(line, /82\.63\s+-0\.44\s+-0\.45/);
 });
 
 test("a lari move is read at the precision the lari rate is quoted at", () => {
@@ -1020,9 +1021,10 @@ test("card puts the direct rate above the matrix, on the trend columns", () => {
 
 test("card leaves the same air above and below every divider", () => {
   const svg = ratesCard(snapshot());
-  const lines = [...svg.matchAll(/<line [^>]*y1="([\d.]+)"/g)].map((match) =>
-    Number(match[1])
-  );
+  // a dashed line is a leader inside a row, not a divider between sections
+  const lines = [...svg.matchAll(/<line ([^>]*)\/>/g)]
+    .filter((match) => !match[1].includes("stroke-dasharray"))
+    .map((match) => Number(/y1="([\d.]+)"/.exec(match[1])[1]));
   const texts = [...svg.matchAll(/<text [^>]*y="([\d.]+)"[^>]*font-size="([\d.]+)"/g)].map(
     (match) => ({ y: Number(match[1]), size: Number(match[2]) })
   );
@@ -1042,6 +1044,130 @@ test("card leaves the same air above and below every divider", () => {
       `divider at ${line} is not centred between the sections`
     );
   });
+});
+
+test("card reads the week in the same colours as the day", () => {
+  const history = [
+    ...Array.from({ length: 28 }, (_, index) => ({
+      key: "rubPerUsd.unired",
+      value: 83.1,
+      updatedDate: now - 7 * day + index * 6 * hour,
+    })),
+    { key: "rubPerUsd.unired", value: 83.03, updatedDate: now - day },
+    { key: "rubPerUsd.unired", value: 82.63, updatedDate: now },
+    // a day of its own for every bucket the week is averaged over
+    ...Array.from({ length: 5 }, (_, index) => ({
+      key: "gelPerUsd.kursi",
+      value: 2.61,
+      updatedDate: now - (index + 2) * day,
+    })),
+    { key: "gelPerUsd.kursi", value: 2.6155, updatedDate: now - day },
+    // the rouble side of a row that went the other way
+    { key: "rubPerUsd.avosend", value: 84.0, updatedDate: now - day },
+    { key: "rubPerUsd.cbr", value: 80.0, updatedDate: now - day },
+  ];
+  const svg = ratesCard(snapshot({ history }));
+  const cell = (value) =>
+    svg.split("\n").find((line) => line.includes(`>${value}</text>`));
+
+  // a rouble price under both the day and the week is welcome news twice
+  assert.match(cell("-0.44"), /#4ade80/);
+  assert.match(cell("-0.45"), /#4ade80/);
+  // and a lari price reads the other way round, in both columns again: the
+  // week averages 2.6109 against a day of 2.6155
+  assert.match(cell("+0.0035"), /#4ade80/);
+  assert.match(cell("+0.0081"), /#4ade80/);
+  // a rouble that gained is the same news as a lari that lost
+  assert.match(cell("+1.05"), /#f87171/);
+  // and a reference rate moves without it being anybody's news
+  assert.match(cell("+1.13"), /#7f8899/);
+});
+
+test("the week of a carried over quote is read from the quote, not from now", () => {
+  const from = now - 2 * day;
+  const history = [
+    // the source stopped answering two days ago, so its history stops there
+    ...Array.from({ length: 7 }, (_, index) => ({
+      key: "rubPerUsd.multitransfer",
+      value: index < 2 ? 80.0 : 84.0,
+      updatedDate: from - index * day,
+    })),
+  ];
+  const stale = snapshot({
+    quotes: {
+      ...snapshot().quotes,
+      "rubPerUsd.multitransfer": { value: 83.46, updatedDate: from },
+    },
+    failures: { multitransfer: "session" },
+    history,
+  });
+  const line = block(ratesMessage(stale, now))
+    .split("\n")
+    .find((row) => row.startsWith("MTCard"));
+
+  // measured against its own week (82.86) the rate stands 0.60 above it; a
+  // window ending now would drop the two oldest days and read 1.06 instead
+  assert.match(line, /83\.46\s+old\s+\+0\.60/);
+});
+
+test("card runs a leader from the name to the number without touching either", () => {
+  const svg = ratesCard(snapshot());
+  const leaders = [
+    ...svg.matchAll(
+      /<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)"[^>]*stroke-dasharray/g
+    ),
+  ].map((match) => ({
+    left: Number(match[1]),
+    y: Number(match[2]),
+    right: Number(match[3]),
+  }));
+  const numbers = [
+    ...svg.matchAll(
+      /<text x="([\d.]+)" y="([\d.]+)"[^>]*font-size="19"[^>]*text-anchor="end">([^<]*)</g
+    ),
+  ].map((match) => ({
+    y: Number(match[2]),
+    // Noto Sans Mono advances 0.6em, the same arithmetic the layout uses
+    left: Number(match[1]) - match[3].length * 19 * 0.6,
+  }));
+  // a chip is the 17px-tall plate, centred on the same middle as the leader
+  const chips = [
+    ...svg.matchAll(
+      /<rect x="([\d.]+)" y="([\d.]+)"[^>]*width="([\d.]+)" height="17"/g
+    ),
+  ].map((match) => ({
+    y: Number(match[2]) + 17 / 2,
+    right: Number(match[1]) + Number(match[3]),
+  }));
+
+  // one per row: six transfers, four exchanges, the direct rate and the matrix
+  assert.equal(leaders.length, 16);
+  leaders.forEach((leader) => {
+    // it sits on the row's optical middle, a cap above the baseline it serves
+    const row = numbers.filter(
+      (number) => Math.abs(number.y - leader.y - 17 * 0.35) < 1
+    );
+    const first = Math.min(...row.map((number) => number.left));
+
+    assert.ok(row.length > 0, `leader at ${leader.y} serves no row`);
+    assert.ok(
+      leader.right <= first,
+      `leader at ${leader.y} runs into its number`
+    );
+    assert.ok(
+      chips
+        .filter((chip) => Math.abs(chip.y - leader.y) < 1)
+        .every((chip) => chip.right <= leader.left),
+      `leader at ${leader.y} starts inside a chip`
+    );
+  });
+
+  // a row with nothing to show is still a row, and the eye is carried to the
+  // n/a the same way
+  assert.equal(
+    ratesCard(snapshot({ quotes: {} })).split("stroke-dasharray").length - 1,
+    16
+  );
 });
 
 test("card keeps its columns from colliding at the current type sizes", () => {

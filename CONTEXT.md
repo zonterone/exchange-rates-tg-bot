@@ -66,7 +66,7 @@ _Avoid_: value, price
 **Stale quote**:
 A quote carried over from an earlier update because its source failed this round.
 Still shown, always marked, never allowed to win the best route. The mark is the
-word `old` in the trend column of a text table and a red `exp` chip beside the
+word `old` in the `24h` column of a text table and a red `exp` chip beside the
 name on the card — both name this one concept, and the chip marks the row's own
 quote, not the other leg of a chained cell.
 _Avoid_: cached rate, old rate, expired rate
@@ -141,6 +141,17 @@ reference rate competes for nothing and stands apart from the order rather than
 inside it. One order also decides the winner, which is why the highlight is
 always on the leading row.
 _Avoid_: ranking, sorting, best first
+
+**Trend columns**:
+The two cells beside every rate: `24h` — the rate against what it was a day ago,
+and `vs 7d` — the rate against its own average over the week. Both are
+differences, not levels, read at the precision their rate is quoted at and
+coloured by the reading direction of the leg they belong to; a reference rate
+moves without it being news, so its cells stay grey. The week is averaged a day
+at a time, from the moment its quote is from, so a source that answered for a
+few hours cannot outweigh the days it was down. Too little history is absence,
+not failure: the cell reads `—`.
+_Avoid_: change, diff, weekly average
 
 **Rates card**:
 The rendered image of the current rates — two leg tables and the chain matrix,

@@ -1,6 +1,5 @@
 import {
   amount,
-  averageCell,
   deltaCell,
   feeChip,
   feeOf,
@@ -15,6 +14,7 @@ import {
   rub,
   usd,
   valueOf,
+  weekCell,
   age,
 } from "./format";
 import { match } from "ts-pattern";
@@ -252,19 +252,19 @@ export const ratesMessage = (snapshot: Snapshot, now = Date.now()) => {
     cells: [
       rateCell(snapshot, entry.id),
       deltaCell(snapshot, entry.id),
-      averageCell(snapshot, entry.id),
+      weekCell(snapshot, entry.id),
     ],
   });
 
   const tables: Table[] = [
     {
       title: `${rub} → ${usd}  ${rub}/1${usd} · lower better`,
-      headers: ["now", "24h", "7d"],
+      headers: ["now", "24h", "vs 7d"],
       rows: rowsOf(transferRank).map(trendRow),
     },
     {
       title: `${usd} → ${gel}  ${gel}/1${usd} · higher better`,
-      headers: ["now", "24h", "7d"],
+      headers: ["now", "24h", "vs 7d"],
       rows: rowsOf(exchangeRank).map(trendRow),
     },
     {

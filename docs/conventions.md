@@ -22,7 +22,7 @@ modules read the snapshot and nothing else.
 | `src/rates.ts`       | domain core: rate ids, units, sanity ranges, the provider registry, `Snapshot`; no I/O |
 | `src/providers/*`    | one file per source: a `Provider` and its pure `parse`        |
 | `src/updateRates.ts` | the update cycle and snapshot merging                         |
-| `src/trend.ts`       | history pruning, 24h delta, 7d average                        |
+| `src/trend.ts`       | history pruning, the 24h move and the distance from the 7d average |
 | `src/format.ts`      | cell/number/age formatting, currency symbols                  |
 | `src/order.ts`       | the profit order both renderers read a list of sources in     |
 | `src/table.ts`       | monospace grid shared by all text messages                    |

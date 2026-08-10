@@ -64,7 +64,7 @@ when a value is **legitimately absent** and the caller has a plain answer for it
 | --- | --- |
 | provider request, JSON/zod parse, db read/write, PNG render | `Result` / `ResultAsync` |
 | `valueOf(snapshot, id)` — no quote for this rate | `undefined`, a cell renders `n/a` |
-| `dayDelta` / `weekAverage` — not enough history yet | `null`, the cell renders `—` |
+| `dayDelta` / `weekDelta` — not enough history yet | `null`, the cell renders `—` |
 | `bestOf([])` — no candidates to compare | `null` |
 
 Wrapping absence in a `Result` buys nothing and costs a `.match()` at every call site. This is

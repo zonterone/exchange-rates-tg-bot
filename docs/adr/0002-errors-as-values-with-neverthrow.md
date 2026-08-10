@@ -36,7 +36,7 @@ answer — previously indistinguishable from a dead endpoint.
 ## What stays as it was
 
 Absence is not failure. `valueOf` still returns `undefined` when there is no
-quote, `dayDelta` and `weekAverage` still return `null` when the history is too
+quote, `dayDelta` and `weekDelta` still return `null` when the history is too
 short, `bestOf` still returns `null` for an empty list of candidates: each has a
 plain answer at the call site (`n/a`, `—`, no line) and a `Result` would only add
 a `.match()` to every one of them.

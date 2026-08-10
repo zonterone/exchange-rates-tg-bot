@@ -2,7 +2,6 @@ import { match } from "ts-pattern";
 
 import {
   amount,
-  averageCell,
   deltaCell,
   feeChip,
   gel,
@@ -13,6 +12,7 @@ import {
   rub,
   usd,
   valueOf,
+  weekCell,
 } from "./format";
 import { ranked, type Ranked } from "./order";
 import {
@@ -29,6 +29,9 @@ const theme = {
   text: "#e9ecf1",
   muted: "#7f8899",
   line: "#2b303b",
+  // a leader is dots on a row, not a rule under it: broken ink reads fainter
+  // than solid at the same colour, so it starts a step lighter than the line
+  leader: "#404859",
   good: "#4ade80",
   bad: "#f87171",
   bestBg: "rgba(74,222,128,0.16)",
@@ -59,6 +62,10 @@ const hintSize = 12;
 const chipSize = 11;
 // air before a chip, and between two of them on the same row
 const chipGap = 6;
+// air between a leader and the ink on either side of it, and the shortest run
+// of dots worth drawing — below that the gap reads as a gap already
+const leaderAir = 8;
+const leaderRun = 20;
 // the best-rate plate bleeds this far past its number on either side, so the
 // name column has to stop short of it and not just of the digits
 const plateAir = 5;
@@ -83,6 +90,17 @@ const width = (value: string, size: number) => value.length * size * advance;
 
 const esc = (value: string) =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+const trendFill = (entry: Entry, move: string) => {
+  // a reference rate is nobody's news, so its move stays grey
+  if (entry.reference) return theme.muted;
+
+  return match(isWelcome(entry.id, move))
+    .with(null, () => theme.muted)
+    .with(true, () => theme.good)
+    .with(false, () => theme.bad)
+    .exhaustive();
+};
 
 // the card depends on the snapshot alone, which is what makes it cacheable
 export const ratesCard = (snapshot: Snapshot) => {
@@ -213,17 +231,33 @@ export const ratesCard = (snapshot: Snapshot) => {
   // the name column ends where the row's own number begins, and a chip that
   // would cross that line is dropped rather than drawn over the rate — which
   // is why the warning is ordered first and survives the squeeze
+  // returns where the name ends, chips included — the leader starts there
   const label = (y: number, entry: Entry, limit: number) => {
     text(pad, y, entry.label, {
       fill: entry.reference ? theme.muted : theme.text,
     });
 
-    chipsOf(entry).reduce((x, item) => {
+    return chipsOf(entry).reduce((x, item) => {
       const start = x + chipGap;
       if (start + chipWidth(item.text) > limit) return x;
 
       return chip(start, y, item.text, item.warn);
     }, pad + width(entry.label, nameSize));
+  };
+
+  // the sections are wide enough for a name and its number to lose each other,
+  // so dots on the row's own middle carry the eye across — with air on both
+  // ends, and no dots at all where the gap is too short to read as a run
+  const leader = (from: number, to: number, y: number) => {
+    if (to - from < leaderAir * 2 + leaderRun) return;
+
+    out.push(
+      `<line x1="${from + leaderAir}" y1="${middle(y)}" x2="${
+        to - leaderAir
+      }" y2="${middle(
+        y
+      )}" stroke="${theme.leader}" stroke-width="1" stroke-dasharray="1 5" stroke-linecap="round"/>`
+    );
   };
 
   // where the row's own number starts, plate included — a chip may reach it
@@ -234,7 +268,8 @@ export const ratesCard = (snapshot: Snapshot) => {
   const rateRow = (y: number, entry: Entry, best: RateId | null) => {
     const fill = entry.reference ? theme.muted : theme.text;
     const rate = rateCell(snapshot, entry.id);
-    label(y, entry, roomFor(rate));
+    const room = roomFor(rate);
+    leader(label(y, entry, room), room, y);
 
     const isBest = entry.id === best;
     if (isBest) plate(col(0), y, rate);
@@ -245,22 +280,20 @@ export const ratesCard = (snapshot: Snapshot) => {
       fill: isBest ? theme.good : fill,
     });
 
-    const delta = deltaCell(snapshot, entry.id);
-    // a reference rate is nobody's news, so its move stays grey
-    const welcome = entry.reference ? null : isWelcome(entry.id, delta);
-    text(col(1), y, delta, {
+    // both trend columns are moves, so both are read in the same colours: the
+    // day says what changed, the week says where the number stands against it
+    const day = deltaCell(snapshot, entry.id);
+    const week = weekCell(snapshot, entry.id);
+
+    text(col(1), y, day, {
       anchor: "end",
       size: trendSize,
-      fill: match(welcome)
-        .with(null, () => theme.muted)
-        .with(true, () => theme.good)
-        .with(false, () => theme.bad)
-        .exhaustive(),
+      fill: trendFill(entry, day),
     });
-    text(col(2), y, averageCell(snapshot, entry.id), {
+    text(col(2), y, week, {
       anchor: "end",
       size: trendSize,
-      fill: theme.muted,
+      fill: trendFill(entry, week),
     });
   };
 
@@ -280,7 +313,8 @@ export const ratesCard = (snapshot: Snapshot) => {
     });
 
     // the leftmost cell is the one the name column can run into
-    label(y, entry, roomFor(cells[0] ?? missing));
+    const room = roomFor(cells[0] ?? missing);
+    leader(label(y, entry, room), room, y);
 
     columns.forEach((column, index) => {
       const value = cells[index] ?? missing;
@@ -306,7 +340,7 @@ export const ratesCard = (snapshot: Snapshot) => {
   header(firstTop, `${rub} → ${usd}`, `${rub} per 1${usd} · lower better`, [
     "Now",
     "24h",
-    "7d",
+    "vs 7d",
   ]);
   transferSection.forEach((entry, index) =>
     rateRow(rowY(firstTop, index), entry, transferRank.best)
@@ -316,7 +350,7 @@ export const ratesCard = (snapshot: Snapshot) => {
   header(secondTop, `${usd} → ${gel}`, `${gel} per 1${usd} · higher better`, [
     "Now",
     "24h",
-    "7d",
+    "vs 7d",
   ]);
   exchangeSection.forEach((entry, index) =>
     rateRow(rowY(secondTop, index), entry, exchangeRank.best)
