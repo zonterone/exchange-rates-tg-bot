@@ -1,6 +1,9 @@
 export const rateIds = [
   "rubPerUsd.unired",
+  // the card payout keeps the bare name it was stored under before cash was
+  // read too, so the history behind it survives the second payout method
   "rubPerUsd.multitransfer",
+  "rubPerUsd.multitransferCash",
   "rubPerUsd.avosend",
   "rubPerUsd.kwikpay",
   "rubPerUsd.cbr",
@@ -76,6 +79,7 @@ export const unitOf = (id: RateId) => id.split(".")[0] as Unit;
 export const providerOf: Record<RateId, ProviderName> = {
   "rubPerUsd.unired": "unired",
   "rubPerUsd.multitransfer": "multitransfer",
+  "rubPerUsd.multitransferCash": "multitransfer",
   "rubPerUsd.avosend": "avosend",
   "rubPerUsd.kwikpay": "kwikpay",
   "rubPerUsd.cbr": "cbr",
@@ -127,7 +131,10 @@ export type Entry = {
 export const transfers: Entry[] = [
   { id: "rubPerUsd.cbr", label: "CBR", short: "CBR", reference: true },
   { id: "rubPerUsd.unired", label: "Unired", short: "Unrd" },
-  { id: "rubPerUsd.multitransfer", label: "MultiTransfer", short: "MltTr" },
+  // profit order can put a whole provider between the two payout methods, so
+  // each name has to say on its own which one it is
+  { id: "rubPerUsd.multitransfer", label: "MTCard", short: "MTCard" },
+  { id: "rubPerUsd.multitransferCash", label: "MTCash", short: "MTCash" },
   { id: "rubPerUsd.avosend", label: "Avosend", short: "Avsnd" },
   { id: "rubPerUsd.kwikpay", label: "KwikPay", short: "Kwik" },
 ];

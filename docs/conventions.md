@@ -24,6 +24,7 @@ modules read the snapshot and nothing else.
 | `src/updateRates.ts` | the update cycle and snapshot merging                         |
 | `src/trend.ts`       | history pruning, 24h delta, 7d average                        |
 | `src/format.ts`      | cell/number/age formatting, currency symbols                  |
+| `src/order.ts`       | the profit order both renderers read a list of sources in     |
 | `src/table.ts`       | monospace grid shared by all text messages                    |
 | `src/messages.ts`    | HTML messages and the card caption                            |
 | `src/card.ts`        | SVG card layout and theme                                     |

@@ -144,3 +144,10 @@ Under `noUncheckedIndexedAccess` the element is still `T | undefined` and the
 check comes back anyway. Reach for a plain `array()` plus an explicit
 `if (x === undefined) return err("shape")` instead of the runtime check that
 buys no types.
+
+## 2026-08-10 14:20 — claude-opus-5
+
+Rendering a throwaway card preview from a scratch script under `/tmp`, the
+relative imports (`../src/card`) resolved against the script's own directory,
+not the repo — tsx reported `Cannot find module`. A one-off render script needs
+absolute paths to `src/`, or it has to sit inside the repo to import anything.

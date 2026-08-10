@@ -5,7 +5,6 @@ import {
   averageCell,
   deltaCell,
   feeChip,
-  freshValueOf,
   gel,
   isStale,
   isWelcome,
@@ -15,6 +14,7 @@ import {
   usd,
   valueOf,
 } from "./format";
+import { ranked, type Ranked } from "./order";
 import {
   direct,
   exchanges,
@@ -72,49 +72,12 @@ const dividerGap = 11;
 const beforeDivider = dividerGap;
 const afterDivider = Math.round(dividerGap + titleSize * halfCap * 2);
 
-// a stale quote ranks below every fresh one: it cannot win, so it never leads
-const byRate = (
-  snapshot: Snapshot,
-  entries: Entry[],
-  direction: "min" | "max"
-) =>
-  [...entries].sort((left, right) => {
-    const first = freshValueOf(snapshot, left.id);
-    const second = freshValueOf(snapshot, right.id);
-
-    if (first === undefined || second === undefined) {
-      if (first === second) return left.label.localeCompare(right.label);
-      return first === undefined ? 1 : -1;
-    }
-    if (first === second) return left.label.localeCompare(right.label);
-
-    return match(direction)
-      .with("min", () => first - second)
-      .with("max", () => second - first)
-      .exhaustive();
-  });
-
-// one order decides both the rows and the winner, so the highlight is always
-// on the top provider row and on the top left cell of the chain
-const ranked = (
-  snapshot: Snapshot,
-  entries: Entry[],
-  direction: "min" | "max"
-) => {
-  const providers = byRate(
-    snapshot,
-    entries.filter((entry) => !entry.reference),
-    direction
-  );
-  const [top] = providers;
-
-  return {
-    providers,
-    rows: [...entries.filter((entry) => entry.reference), ...providers],
-    best:
-      top && freshValueOf(snapshot, top.id) !== undefined ? top.id : null,
-  };
-};
+// the reference rate is pinned above the sorted providers: it is the yardstick
+// the block is read against, so it leads the section without competing in it
+const rowsOf = ({ providers, references }: Ranked) => [
+  ...references,
+  ...providers,
+];
 
 const width = (value: string, size: number) => value.length * size * advance;
 
@@ -127,6 +90,8 @@ export const ratesCard = (snapshot: Snapshot) => {
 
   const transferRank = ranked(snapshot, transfers, "min");
   const exchangeRank = ranked(snapshot, exchanges, "max");
+  const transferSection = rowsOf(transferRank);
+  const exchangeSection = rowsOf(exchangeRank);
 
   // the layout is arithmetic, and the height it lands on becomes the width
   const rowY = (top: number, index: number) =>
@@ -136,10 +101,10 @@ export const ratesCard = (snapshot: Snapshot) => {
   // the first ink is the cap of the section title, not its baseline
   const firstTop = Math.round(pad + titleSize * halfCap * 2);
   const firstLine =
-    bottomOf(firstTop, transferRank.rows.length) + beforeDivider;
+    bottomOf(firstTop, transferSection.length) + beforeDivider;
   const secondTop = firstLine + afterDivider;
   const secondLine =
-    bottomOf(secondTop, exchangeRank.rows.length) + beforeDivider;
+    bottomOf(secondTop, exchangeSection.length) + beforeDivider;
   const chainTop = secondLine + afterDivider;
   // the direct rate is no chain, so it takes a row of its own between the
   // heading and the matrix — same trend columns, no headings above them
@@ -343,7 +308,7 @@ export const ratesCard = (snapshot: Snapshot) => {
     "24h",
     "7d",
   ]);
-  transferRank.rows.forEach((entry, index) =>
+  transferSection.forEach((entry, index) =>
     rateRow(rowY(firstTop, index), entry, transferRank.best)
   );
   divider(firstLine);
@@ -353,7 +318,7 @@ export const ratesCard = (snapshot: Snapshot) => {
     "24h",
     "7d",
   ]);
-  exchangeRank.rows.forEach((entry, index) =>
+  exchangeSection.forEach((entry, index) =>
     rateRow(rowY(secondTop, index), entry, exchangeRank.best)
   );
   divider(secondLine);

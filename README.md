@@ -4,17 +4,18 @@ Bot updates rates every 30 minutes and saves them to a db.json file. It watches
 the Georgia direction in two legs and the chain between them:
 
 - **₽ → $** money transfer rates: Unired, MultiTransfer, Avosend, KwikPay (CBR
-  for reference)
+  for reference). MultiTransfer pays out two ways and quotes each separately, so
+  it takes two rows — `MTCard` onto a card, `MTCash` over a counter
 - **$ → ₾** exchange rates: kursi.ge, Bank of Georgia, TBC (NBG for reference)
 - **₽ → ₾** every transfer/exchange combination, so the cheapest route is
   visible, with the CBR direct rate beside it
 
-`/rates` answers with a rendered card (PNG). Reference rates are pinned on top
-of their section, providers below them are sorted by profit — so the best rate
-you can act on leads every table and the best chain is the top left cell of the
-matrix. A quote carried over from an earlier update sorts below the fresh ones
-and never wins. Send the bot a sum instead to get the same breakdown in
-amounts, as text, with
+`/rates` answers with a rendered card (PNG). Every table is read in the same
+profit order — the best rate you can act on leads it, and the best chain is the
+top left cell of the matrix. A quote carried over from an earlier update sorts
+below the fresh ones and never wins. Reference rates compete for nothing: on the
+card they are pinned above their section, in a text table they close it. Send
+the bot a sum instead to get the same breakdown in amounts, as text, with
 inline buttons that recalculate the same sum in the other directions
 (`?₽ → ₾`, `?₽ → $`, `$ ⇄ ₾`). The bot also answers inline queries, so
 `@your_bot` posts the current rates into any chat.

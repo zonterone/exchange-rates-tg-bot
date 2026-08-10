@@ -18,6 +18,7 @@ import {
   age,
 } from "./format";
 import { match } from "ts-pattern";
+import { ranked, type Ranked } from "./order";
 import {
   direct,
   exchanges,
@@ -35,14 +36,22 @@ export const cold = "Rates are not loaded yet. Try again later.";
 
 const feeMark = "*";
 
-// the grid keeps a fixed order — providers first, the reference rate last
-const providers = (entries: Entry[]) =>
-  entries.filter((entry) => !entry.reference);
-const references = (entries: Entry[]) =>
-  entries.filter((entry) => entry.reference);
+// the same profit order the card is read in; a text table differs only in
+// where the reference rate sits — under the providers rather than above them,
+// because a grid is read downwards and the yardstick closes the block
+const transferOrder = (snapshot: Snapshot) => ranked(snapshot, transfers, "min");
+const exchangeOrder = (snapshot: Snapshot) => ranked(snapshot, exchanges, "max");
 
-const transferRows = [...providers(transfers), ...references(transfers)];
-const exchangeRows = [...providers(exchanges), ...references(exchanges)];
+const rowsOf = ({ providers, references }: Ranked) => [
+  ...providers,
+  ...references,
+];
+
+// every row of both legs, in the order they are shown
+const sources = (snapshot: Snapshot) => [
+  ...rowsOf(transferOrder(snapshot)),
+  ...rowsOf(exchangeOrder(snapshot)),
+];
 
 const label = (entry: Entry, snapshot: Snapshot) =>
   feeChip(snapshot, entry.id) ? `${entry.short}${feeMark}` : entry.short;
@@ -51,7 +60,7 @@ const label = (entry: Entry, snapshot: Snapshot) =>
 // missing from the numbers above, so only it takes the suffix — a folded one
 // says so instead, or a reader would subtract it a second time by hand
 const feeNote = (snapshot: Snapshot, suffix: string) =>
-  providers(transfers).flatMap((entry) => {
+  transferOrder(snapshot).providers.flatMap((entry) => {
     const fee = feeOf(snapshot, entry.id);
     if (!fee) return [];
 
@@ -136,11 +145,11 @@ const chainCandidates = (
   snapshot: Snapshot,
   convert: (chain: number) => number
 ) =>
-  providers(transfers).flatMap((transfer) => {
+  transferOrder(snapshot).providers.flatMap((transfer) => {
     const rubPerUsd = freshValueOf(snapshot, transfer.id);
     if (rubPerUsd === undefined) return [];
 
-    return providers(exchanges).flatMap((exchange) => {
+    return exchangeOrder(snapshot).providers.flatMap((exchange) => {
       const gelPerUsd = freshValueOf(snapshot, exchange.id);
       if (gelPerUsd === undefined) return [];
 
@@ -190,7 +199,7 @@ const chainRow = (
   convert: (chain: number) => number
 ): Row => ({
   label: label(transfer, snapshot),
-  cells: providers(exchanges).map((exchange) => {
+  cells: exchangeOrder(snapshot).providers.map((exchange) => {
     const rubPerUsd = valueOf(snapshot, transfer.id);
     const gelPerUsd = valueOf(snapshot, exchange.id);
     if (rubPerUsd === undefined || gelPerUsd === undefined) return missing;
@@ -228,13 +237,16 @@ const message = (parts: (string | string[])[]) =>
 // the card itself carries no timestamp, so freshness lives in its caption
 export const ratesCaption = (snapshot: Snapshot, now = Date.now()) =>
   message([
-    notes(snapshot, [...transferRows, ...exchangeRows, direct]),
+    notes(snapshot, [...sources(snapshot), direct]),
     footer(snapshot, now),
     "",
     "Send me a sum to calculate",
   ]);
 
 export const ratesMessage = (snapshot: Snapshot, now = Date.now()) => {
+  const transferRank = transferOrder(snapshot);
+  const exchangeRank = exchangeOrder(snapshot);
+
   const trendRow = (entry: Entry): Row => ({
     label: label(entry, snapshot),
     cells: [
@@ -248,17 +260,17 @@ export const ratesMessage = (snapshot: Snapshot, now = Date.now()) => {
     {
       title: `${rub} → ${usd}  ${rub}/1${usd} · lower better`,
       headers: ["now", "24h", "7d"],
-      rows: transferRows.map(trendRow),
+      rows: rowsOf(transferRank).map(trendRow),
     },
     {
       title: `${usd} → ${gel}  ${gel}/1${usd} · higher better`,
       headers: ["now", "24h", "7d"],
-      rows: exchangeRows.map(trendRow),
+      rows: rowsOf(exchangeRank).map(trendRow),
     },
     {
       title: `${rub} → ${gel}  ${rub}/1${gel} · via ${usd} · lower better`,
-      headers: providers(exchanges).map((exchange) => exchange.short),
-      rows: providers(transfers).map((transfer) => {
+      headers: exchangeRank.providers.map((exchange) => exchange.short),
+      rows: transferRank.providers.map((transfer) => {
         return chainRow(snapshot, transfer, (chain) => chain);
       }),
     },
@@ -267,7 +279,7 @@ export const ratesMessage = (snapshot: Snapshot, now = Date.now()) => {
   return message([
     `<pre>${render(tables)}</pre>`,
     feeNote(snapshot, ""),
-    notes(snapshot, [...transferRows, ...exchangeRows, direct]),
+    notes(snapshot, [...sources(snapshot), direct]),
     directLine(snapshot),
     bestLine(
       chainCandidates(snapshot, (chain) => chain),
@@ -292,28 +304,32 @@ const modeMessage = (
   shown: Entry[];
   fee: string[];
   best: string[];
-} =>
-  match(mode)
+} => {
+  const transferRank = transferOrder(snapshot);
+  const exchangeRank = exchangeOrder(snapshot);
+  const columns = exchangeRank.providers.map((exchange) => exchange.short);
+
+  return match(mode)
     .with("sendRub", () => ({
       header: `Send ${formatSum(sum)}${rub}`,
       tables: [
         {
           title: `get ${usd}`,
           headers: [],
-          rows: providers(transfers).map((transfer) => {
+          rows: transferRank.providers.map((transfer) => {
             return legRow(snapshot, transfer, (rate) => sum / rate);
           }),
         },
         {
           title: `get ${gel} (via ${usd})`,
-          headers: providers(exchanges).map((exchange) => exchange.short),
-          rows: providers(transfers).map((transfer) => {
+          headers: columns,
+          rows: transferRank.providers.map((transfer) => {
             return chainRow(snapshot, transfer, (chain) => sum / chain);
           }),
         },
       ],
       captions: [],
-      shown: [...transferRows, ...exchangeRows],
+      shown: sources(snapshot),
       fee: feeNote(snapshot, " (not included)"),
       best: bestLine(
         chainCandidates(snapshot, (chain) => sum / chain),
@@ -326,14 +342,14 @@ const modeMessage = (
       tables: [
         {
           title: `need ${rub} (via ${usd})`,
-          headers: providers(exchanges).map((exchange) => exchange.short),
-          rows: providers(transfers).map((transfer) => {
+          headers: columns,
+          rows: transferRank.providers.map((transfer) => {
             return chainRow(snapshot, transfer, (chain) => sum * chain);
           }),
         },
       ],
       captions: [],
-      shown: [...transferRows, ...exchangeRows],
+      shown: sources(snapshot),
       fee: feeNote(snapshot, " (not included)"),
       best: bestLine(
         chainCandidates(snapshot, (chain) => sum * chain),
@@ -347,16 +363,16 @@ const modeMessage = (
         {
           title: `need ${rub}`,
           headers: [],
-          rows: providers(transfers).map((transfer) => {
+          rows: transferRank.providers.map((transfer) => {
             return legRow(snapshot, transfer, (rate) => sum * rate);
           }),
         },
       ],
       captions: [],
-      shown: transferRows,
+      shown: rowsOf(transferRank),
       fee: feeNote(snapshot, " (not included)"),
       best: bestLine(
-        legCandidates(snapshot, providers(transfers), (rate) => sum * rate),
+        legCandidates(snapshot, transferRank.providers, (rate) => sum * rate),
         "min",
         (value) => `${group(amount(value))}${rub}`
       ),
@@ -367,7 +383,7 @@ const modeMessage = (
         {
           title: "",
           headers: [`get ${gel}`, `need ${usd}`],
-          rows: providers(exchanges).map((exchange) => {
+          rows: exchangeRank.providers.map((exchange) => {
             const rate = valueOf(snapshot, exchange.id);
             return {
               label: exchange.short,
@@ -383,15 +399,16 @@ const modeMessage = (
         `get ${gel} — from ${formatSum(sum)}${usd}`,
         `need ${usd} — for ${formatSum(sum)}${gel}`,
       ],
-      shown: exchangeRows,
+      shown: rowsOf(exchangeRank),
       fee: [],
       best: bestLine(
-        legCandidates(snapshot, providers(exchanges), (rate) => sum * rate),
+        legCandidates(snapshot, exchangeRank.providers, (rate) => sum * rate),
         "max",
         (value) => `${group(amount(value))}${gel}`
       ),
     }))
     .exhaustive();
+};
 
 export const amountMessage = (
   mode: Mode,

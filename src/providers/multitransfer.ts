@@ -13,9 +13,12 @@ const url =
 
 const sessionRejected = 423;
 
-// the response quotes every delivery type; a broken cash entry must not cost
-// us the card one, which is the only rate the bot uses
-const isToCard = isMatching({ deliveryType: "to_card" });
+// the response quotes both payout methods in one list, and they are read apart:
+// a broken cash entry must not cost us the card rate, or the other way round
+const payouts = [
+  { delivery: "to_card", id: "rubPerUsd.multitransfer" },
+  { delivery: "to_cash", id: "rubPerUsd.multitransferCash" },
+] as const;
 
 const schema = z.object({ fees: z.array(z.unknown()) });
 
@@ -24,14 +27,25 @@ const feeSchema = z.object({
 });
 
 export const parse = (raw: unknown): Result<Payload["rates"], "shape"> =>
-  fromZod(schema.safeParse(raw))
-    .andThen((data) => fromZod(feeSchema.safeParse(data.fees.find(isToCard))))
-    .andThen((card) => {
-      const rate = card.commissions[0]?.money.rate;
-      if (rate === undefined) return err("shape");
+  fromZod(schema.safeParse(raw)).andThen((data) => {
+    const rates: Payload["rates"] = Object.fromEntries(
+      payouts.flatMap(({ delivery, id }) => {
+        const payout = feeSchema.safeParse(
+          data.fees.find(isMatching({ deliveryType: delivery }))
+        );
+        if (!payout.success) return [];
 
-      return ok({ "rubPerUsd.multitransfer": rate });
-    });
+        const rate = payout.data.commissions[0]?.money.rate;
+        return rate === undefined ? [] : [[id, rate]];
+      })
+    );
+
+    // one payout method still reading is a rate we have; nothing readable at
+    // all is the source having changed shape
+    if (Object.keys(rates).length === 0) return err("shape");
+
+    return ok(rates);
+  });
 
 const quote = (id: string) =>
   request(
@@ -81,7 +95,7 @@ const ask = (id: string) =>
 
 export const multitransfer: Provider = {
   name: "multitransfer",
-  ids: ["rubPerUsd.multitransfer"],
+  ids: ["rubPerUsd.multitransfer", "rubPerUsd.multitransferCash"],
   fetch: () => {
     const id = stored();
     // nothing proven yet, so the id this asks with is minted now — a refusal

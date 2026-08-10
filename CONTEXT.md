@@ -28,8 +28,17 @@ _Avoid_: cross rate, official rate
 
 **Transfer provider**:
 A service that moves roubles out of Russia and pays out dollars in Georgia
-(Unired, MultiTransfer, Avosend, KwikPay). Quotes the `₽ → $` leg.
+(Unired, MultiTransfer, Avosend, KwikPay). Quotes the `₽ → $` leg — once per
+**payout method** it offers.
 _Avoid_: bank, exchanger, service
+
+**Payout method**:
+How a transfer provider hands the dollars over at the Georgian end: onto a card,
+or as cash across a counter. A provider that offers both quotes both, at rates
+that need not agree, so each is its own rate id and its own row — `MTCard` and
+`MTCash` are two things to choose between, not one rate with a footnote. Which
+one a reader can use is theirs to decide, so neither is hidden behind the other.
+_Avoid_: delivery type, receive method, withdrawal
 
 **Exchange point**:
 A place in Georgia that buys dollars for lari (kursi.ge, Bank of Georgia, TBC).
@@ -124,13 +133,20 @@ _Avoid_: parse error, invalid response, bad data
 
 ### Presentation
 
+**Profit order**:
+The order rows are read in, and the same one everywhere a list of sources
+appears: sorted by profit, so the best rate a reader can act on leads. A stale
+quote sorts below every fresh one — it cannot win, so it never leads. A
+reference rate competes for nothing and stands apart from the order rather than
+inside it. One order also decides the winner, which is why the highlight is
+always on the leading row.
+_Avoid_: ranking, sorting, best first
+
 **Rates card**:
-The rendered image of the current rates — two leg tables and the chain matrix.
-Reference rates are pinned to the top row of their section; below them providers
-are sorted by profit, so the best one a user can act on leads the block and the
-best chain lands on the top left cell. A stale quote sorts below every fresh one
-— it cannot win, so it never leads. The card carries no timestamp, which is what
-lets one render serve a whole update cycle.
+The rendered image of the current rates — two leg tables and the chain matrix,
+in **profit order**, with the reference rate pinned to the top row of its
+section and the best chain on the top left cell. The card carries no timestamp,
+which is what lets one render serve a whole update cycle.
 _Avoid_: picture, screenshot, snapshot
 
 ### Reading direction

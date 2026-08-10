@@ -57,6 +57,7 @@ const snapshot = (overrides = {}) => ({
   quotes: quotes({
     "rubPerUsd.unired": 82.63,
     "rubPerUsd.multitransfer": 83.46,
+    "rubPerUsd.multitransferCash": 83.56,
     "rubPerUsd.avosend": 85.05,
     "rubPerUsd.kwikpay": 86.4,
     "rubPerUsd.cbr": 81.13,
@@ -126,6 +127,7 @@ test("parses every provider from a live response fixture", () => {
   });
   assert.deepEqual(parseMultitransfer(json("multitransfer.json"))._unsafeUnwrap(), {
     "rubPerUsd.multitransfer": 83.46,
+    "rubPerUsd.multitransferCash": 83.56,
   });
   assert.deepEqual(parseAvosend(fixture("avosend.html"))._unsafeUnwrap(), {
     rates: { "rubPerUsd.avosend": 85.05 },
@@ -218,14 +220,36 @@ test("a rate that still reads is a success, not a shape change", () => {
   });
 });
 
-test("takes the to_card delivery type, not the first commission", () => {
+test("reads each payout method into a rate of its own", () => {
+  const raw = json("multitransfer.json");
+  const rate = (delivery) =>
+    raw.fees.find((fee) => fee.deliveryType === delivery).commissions[0].money
+      .rate;
+
+  // the card group quotes two payment systems before the cash one is reached,
+  // so neither rate can come from the position an entry sits at in the list
+  assert.equal(rate("to_card"), "83.460000");
+  assert.equal(rate("to_cash"), "83.560000");
+  assert.deepEqual(parseMultitransfer(raw)._unsafeUnwrap(), {
+    "rubPerUsd.multitransfer": 83.46,
+    "rubPerUsd.multitransferCash": 83.56,
+  });
+});
+
+test("one broken payout method still leaves the other its rate", () => {
   const raw = json("multitransfer.json");
   const cash = raw.fees.find((fee) => fee.deliveryType === "to_cash");
 
-  assert.equal(cash.commissions[0].money.rate, "83.560000");
-  assert.deepEqual(parseMultitransfer(raw)._unsafeUnwrap(), {
-    "rubPerUsd.multitransfer": 83.46,
-  });
+  assert.deepEqual(
+    parseMultitransfer({ fees: [{ deliveryType: "to_card" }, cash] })._unsafeUnwrap(),
+    { "rubPerUsd.multitransferCash": 83.56 }
+  );
+
+  const card = raw.fees.find((fee) => fee.deliveryType === "to_card");
+  assert.deepEqual(
+    parseMultitransfer({ fees: [card, "nonsense"] })._unsafeUnwrap(),
+    { "rubPerUsd.multitransfer": 83.46 }
+  );
 });
 
 test("reports a session failure when there is no browser to mint one with", async () => {
@@ -257,6 +281,7 @@ test("keeps parsing when a neighbour in the list is broken", () => {
   const fees = json("multitransfer.json").fees;
   assert.deepEqual(parseMultitransfer({ fees: ["broken", ...fees] })._unsafeUnwrap(), {
     "rubPerUsd.multitransfer": 83.46,
+    "rubPerUsd.multitransferCash": 83.56,
   });
 });
 
@@ -351,7 +376,8 @@ test("renders rates with legs, chain matrix and the best chain", () => {
       "₽ → $  ₽/1$ · lower better",
       "           now    24h     7d",
       "Unrd     82.63      —      —",
-      "MltTr    83.46      —      —",
+      "MTCard   83.46      —      —",
+      "MTCash   83.56      —      —",
       "Avsnd*   85.05      —      —",
       "Kwik*    86.40      —      —",
       "CBR      81.13      —      —",
@@ -366,7 +392,8 @@ test("renders rates with legs, chain matrix and the best chain", () => {
       "₽ → ₾  ₽/1₾ · via $ · lower better",
       "         Kursi    BoG    TBC",
       "Unrd     31.55  31.84  31.84",
-      "MltTr    31.87  32.16  32.16",
+      "MTCard   31.87  32.16  32.16",
+      "MTCash   31.91  32.20  32.20",
       "Avsnd*   32.47  32.77  32.77",
       "Kwik*    32.99  33.29  33.29",
     ].join("\n")
@@ -457,16 +484,20 @@ test("marks carried over quotes and explains why", () => {
   });
   const message = ratesMessage(stale, now);
 
-  assert.match(block(message), /MltTr\s+83\.46\s+old/);
-  assert.match(message, /MltTr — no antifraud session, rate from 3h ago/);
+  // the failure is the provider's, but only the payout method it left behind
+  // carries the mark — the other one refreshed
+  assert.match(block(message), /MTCard\s+83\.46\s+old/);
+  assert.match(block(message), /MTCash\s+83\.56\s+—/);
+  assert.match(message, /MTCard — no antifraud session, rate from 3h ago/);
 });
 
 test("says so when a source answered with a shape it cannot read", () => {
   const missing = snapshot({ quotes: {}, failures: { kursi: "shape" } });
 
+  // with nothing to rank by, the order falls back to the name
   assert.match(
     ratesMessage(missing, now),
-    /Kursi, BoG, TBC, NBG — no data \(source changed shape\)/
+    /BoG, Kursi, TBC, NBG — no data \(source changed shape\)/
   );
 
   const stale = snapshot({
@@ -490,7 +521,7 @@ test("shows n/a and skips the best line when nothing is fresh", () => {
   assert.match(block(message), /Unrd\s+n\/a/);
   assert.match(block(message), /Unrd\s+n\/a\s+n\/a/);
   // one line per source and reason, not one per rate it feeds
-  assert.match(message, /Kursi, BoG, TBC, NBG — no data \(provider unavailable\)/);
+  assert.match(message, /BoG, Kursi, TBC, NBG — no data \(provider unavailable\)/);
   assert.doesNotMatch(message, /Best:/);
 });
 
@@ -769,8 +800,10 @@ test("card ranks providers by profit with references pinned on top", () => {
   const at = (label) => svg.indexOf(`>${label}<`);
 
   assert.ok(at("CBR") < at("Unired"), "reference first");
-  assert.ok(at("Unired") < at("MultiTransfer"), "cheapest dollars first");
-  assert.ok(at("MultiTransfer") < at("Avosend"));
+  assert.ok(at("Unired") < at("MTCard"), "cheapest dollars first");
+  // two payout methods of one provider rank against each other like any pair
+  assert.ok(at("MTCard") < at("MTCash"));
+  assert.ok(at("MTCash") < at("Avosend"));
   assert.ok(at("NBG") < at("Kursi"), "reference first");
   assert.ok(at("Kursi") < at("BoG"), "most lari first");
   assert.ok(at("BoG") < at("TBC"), "ties break by name");
@@ -798,30 +831,56 @@ test("card marks a quote the update failed to refresh with a red exp chip", () =
   );
 });
 
-test("card drops the lesser chip rather than draw it over the rate", () => {
+test("no chip is ever drawn over the number of its own row", () => {
   const base = staling(snapshot(), "rubPerUsd.avosend");
 
   const roomy = ratesCard(base);
   assert.ok(roomy.includes(">exp</text>"), "the warning is drawn");
   assert.ok(roomy.includes(">fee 79₽</text>"), "and so is the fee beside it");
 
-  // the widest fee the validator still accepts and a three-digit rouble rate
-  // leave the name column no room for two chips
-  const tight = {
+  // the widest fee the validator still accepts on a three-digit rouble rate:
+  // the least room the name column can legally be left with
+  const svg = ratesCard({
     ...base,
     fees: { avosend: { fix: 9999.99, percent: 99.99 } },
     quotes: {
       ...base.quotes,
       "rubPerUsd.avosend": { ...base.quotes["rubPerUsd.avosend"], value: 250.5 },
     },
-  };
-  const squeezed = ratesCard(tight);
+  });
 
-  assert.ok(squeezed.includes(">exp</text>"), "the warning survives");
-  assert.ok(
-    !squeezed.includes("fee 9999.99₽ + 99.99%"),
-    "the fee chip is dropped instead of overlapping the number"
+  assert.ok(svg.includes(">exp</text>"), "the warning is drawn either way");
+
+  // every width in the layout is arithmetic on the 0.6 em glyph advance, and
+  // a chip sits half its height above the row's baseline
+  const numbers = [
+    ...svg.matchAll(
+      /<text x="([\d.]+)" y="([\d.]+)"[^>]*font-size="19"[^>]*text-anchor="end">([^<]+)</g
+    ),
+  ].map((cell) => ({
+    x: Number(cell[1]),
+    y: Number(cell[2]),
+    left: Number(cell[1]) - cell[3].length * 19 * 0.6,
+  }));
+
+  const column = Math.min(...numbers.map((cell) => cell.x));
+  const edges = new Map(
+    numbers.filter((cell) => cell.x === column).map((cell) => [cell.y, cell.left])
   );
+
+  const chips = [
+    ...svg.matchAll(/<rect x="([\d.]+)" y="([\d.]+)" rx="9"[^>]*width="([\d.]+)"/g),
+  ];
+
+  assert.ok(chips.length > 0, "there are chips to check at all");
+  chips.forEach((chip) => {
+    const edge = edges.get(Number(chip[2]) + 17 * 0.35 + 8.5);
+    assert.ok(edge !== undefined, "every chip sits on a row that carries a number");
+    assert.ok(
+      Number(chip[1]) + Number(chip[3]) <= edge,
+      `a chip reaches ${Number(chip[1]) + Number(chip[3])}, past ${edge}`
+    );
+  });
 });
 
 test("a fee in the rate is marked apart from a fee charged on top of it", () => {
@@ -921,7 +980,7 @@ test("a stale quote neither leads the table nor wins", () => {
   const cell = (value) =>
     svg.split("\n").find((line) => line.includes(`>${value}</text>`));
 
-  assert.ok(at("Unired") < at("MultiTransfer"), "fresh rates rank first");
+  assert.ok(at("Unired") < at("MTCard"), "fresh rates rank first");
   assert.doesNotMatch(cell("80.00"), /#4ade80/);
   assert.match(cell("82.63"), /#4ade80/);
   // the chain highlight follows the same winner, not the cheaper stale row
