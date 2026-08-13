@@ -45,6 +45,15 @@ A place in Georgia that buys dollars for lari (kursi.ge, Bank of Georgia, TBC).
 Quotes the `$ → ₾` leg.
 _Avoid_: bank, exchanger
 
+**Paused source**:
+A source the bot stops talking to and stops showing: the cycle does not ask it,
+so it reports no failure, and it is left out of every table, chip, note and best
+line (KwikPay is paused). Its file, ids, fee mode and the quotes stored before
+the pause all stay — the pause itself is one name in `paused`, and lifting it is
+the same one word. Unlike a **reference rate**, which is shown and competes for
+nothing, a paused source is not shown at all.
+_Avoid_: disabled, hidden, off
+
 **Reference rate**:
 A rate nobody can transact at, shown only as a yardstick — CBR for `₽ → $` and
 `₽ → ₾`, NBG for `$ → ₾`. Never competes for the best route.

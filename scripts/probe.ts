@@ -22,7 +22,9 @@ const describe = (payload: Payload) => {
 // KwikPay's commission is folded into its rate, which is only honest while the
 // commission stays proportional. One sum can never show that: a fixed part
 // would quietly ride along inside the rate and be wrong for every other sum,
-// so the check is the same rate coming back at two of them
+// so the check is the same rate coming back at two of them. KwikPay is paused,
+// so the cycle no longer asks it and this is the only thing that still does —
+// it is what has to pass before the pause is lifted
 const folded = async () => {
   const answers = await Promise.all(["100", "500"].map(quote));
   const nothing: Payload = { rates: {} };

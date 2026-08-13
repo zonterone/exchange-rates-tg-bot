@@ -1,7 +1,7 @@
 import { match } from "ts-pattern";
 
 import { freshValueOf } from "./format";
-import type { Entry, RateId, Snapshot } from "./rates";
+import { isPaused, type Entry, type RateId, type Snapshot } from "./rates";
 
 // a stale quote ranks below every fresh one: it cannot win, so it never leads
 const byRate = (
@@ -36,16 +36,19 @@ export const ranked = (
   entries: Entry[],
   direction: "min" | "max"
 ) => {
+  // the one place a paused source drops out of the presentation, so no
+  // renderer, note or best line can carry it back in on its own
+  const shown = entries.filter((entry) => !isPaused(entry.id));
   const providers = byRate(
     snapshot,
-    entries.filter((entry) => !entry.reference),
+    shown.filter((entry) => !entry.reference),
     direction
   );
   const [top] = providers;
 
   return {
     providers,
-    references: entries.filter((entry) => entry.reference),
+    references: shown.filter((entry) => entry.reference),
     best: (top && freshValueOf(snapshot, top.id) !== undefined
       ? top.id
       : null) as RateId | null,

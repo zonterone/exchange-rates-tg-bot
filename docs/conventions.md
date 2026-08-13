@@ -68,6 +68,19 @@ modules read the snapshot and nothing else.
 7. Record a real response in `test/fixtures/` and cover `parse` in
    `test/core.test.js`; check the live endpoint with `npm run probe`.
 
+## Pausing a provider
+
+A source that has to go quiet — dead endpoint, a rate not worth showing —
+is named in `paused` in `src/rates.ts` and nothing else changes. That one list
+drops it out of both halves at once: `src/providers/index.ts` filters the fetch
+list by it, so the cycle never asks and no failure of its can reach the
+snapshot, and `ranked` in `src/order.ts` filters the entries by it, so no table,
+chip, note or best line can carry it back in. Everything else stays put — the
+provider file, its ids, its fee mode, its fixtures and parse tests, and the
+quotes stored before the pause — and lifting the pause is the same one word.
+`npm run probe` still talks to a paused source: it is what says whether the
+source is worth bringing back.
+
 ## Naming and exports
 
 - Rate ids are `<unit>.<source>` (`rubPerUsd.unired`); the unit prefix decides
@@ -162,7 +175,8 @@ explain is dropped rather than passed to the formatters.
 
 - `npm test` — offline unit tests on recorded fixtures; must pass.
 - `npm run build` — the production bundle must compile clean.
-- `npm run probe` — hits every live endpoint and prints what parsed; the
+- `npm run probe` — hits every live endpoint the cycle asks, plus the paused
+  KwikPay, and prints what parsed; the
   only check that catches a source that changed shape or a MultiTransfer mint
   the antifraud has started refusing
   ([ADR 0001](adr/0001-multitransfer-antifraud-session.md)). It also asks

@@ -90,6 +90,13 @@ export const providerOf: Record<RateId, ProviderName> = {
   "rubPerGel.cbr": "cbr",
 };
 
+// a paused source is neither asked nor shown: it leaves the fetch list and
+// every rendered row at once, while its module, ids, fee mode and the quotes
+// already stored stay where they are — so lifting the pause is this one word
+export const paused: ProviderName[] = ["kwikpay"];
+
+export const isPaused = (id: RateId) => paused.includes(providerOf[id]);
+
 export const isRateId = (key: unknown): key is RateId =>
   rateIds.includes(key as RateId);
 

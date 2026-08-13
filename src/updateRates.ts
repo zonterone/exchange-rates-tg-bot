@@ -165,7 +165,7 @@ const ask = (provider: Provider): Promise<Result<Payload, Failure>> =>
       return err("unavailable" as const);
     });
 
-// nothing here rejects, so all five run together and a failed one is simply
+// nothing here rejects, so they all run together and a failed one is simply
 // the word it answered with
 const collect = (providers: Provider[]) =>
   Promise.all(

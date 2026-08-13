@@ -1,9 +1,10 @@
 # Project map
 
 Telegram bot (grammY) watching ₽ → $ → ₾ rates in the Georgia direction. A cron
-job fetches six providers every 30 minutes into a json-db snapshot
-(`db/db.json`); handlers serve everything from that snapshot — `/rates` renders
-an SVG → PNG card, a sum gets a text breakdown. Data flows one way:
+job fetches every provider that is not paused, every 30 minutes, into a json-db
+snapshot (`db/db.json`); handlers serve everything from that snapshot —
+`/rates` renders an SVG → PNG card, a sum gets a text breakdown. Data flows one
+way:
 `src/providers → snapshot (src/updateRates) → presentation (messages/card)`.
 
 - Domain glossary: `CONTEXT.md` — use its terms verbatim, they are load-bearing.

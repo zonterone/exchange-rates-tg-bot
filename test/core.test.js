@@ -18,10 +18,12 @@ process.env.DB_PATH = path.join(
 const { parseSum } = await import("../src/bot");
 const { ratesCard } = await import("../src/card");
 const { db, guard } = await import("../src/db");
+const { feeChip } = await import("../src/format");
 const { ratesPng, toPng } = await import("../src/image");
 const { amountMessage, cold, ratesCaption, ratesMessage } = await import(
   "../src/messages"
 );
+const { providers } = await import("../src/providers");
 const { parse: parseAvosend } = await import("../src/providers/avosend");
 const { parse: parseCbr } = await import("../src/providers/cbr");
 const { parse: parseKursi } = await import("../src/providers/kursi");
@@ -379,7 +381,6 @@ test("renders rates with legs, chain matrix and the best chain", () => {
       "MTCard   83.46      —      —",
       "MTCash   83.56      —      —",
       "Avsnd*   85.05      —      —",
-      "Kwik*    86.40      —      —",
       "CBR      81.13      —      —",
       "",
       "$ → ₾  ₾/1$ · higher better",
@@ -395,13 +396,9 @@ test("renders rates with legs, chain matrix and the best chain", () => {
       "MTCard   31.87  32.16  32.16",
       "MTCash   31.91  32.20  32.20",
       "Avsnd*   32.47  32.77  32.77",
-      "Kwik*    32.99  33.29  33.29",
     ].join("\n")
   );
   assert.match(message, /\* Avsnd fee 79₽/);
-  // the same mark, two opposite stories: one fee is still to be paid, the
-  // other is already inside the number it sits beside
-  assert.match(message, /\* Kwik fee 1\.2% \(included in rate\)/);
   assert.match(message, /CBR direct — 30\.91₽ per 1₾/);
   assert.match(message, /Best: Unrd → Kursi — 31\.55₽ per 1₾/);
   assert.match(
@@ -888,16 +885,34 @@ test("a fee in the rate is marked apart from a fee charged on top of it", () => 
   const svg = ratesCard(snapshot());
 
   assert.ok(svg.includes(">fee 79₽</text>"), "Avosend bills its 79₽ beside the rate");
-  assert.ok(
-    svg.includes(">incl 1.2%</text>"),
-    "KwikPay's 1.2% is already inside the rate above it"
-  );
+  // the only source that folds its fee into the rate is paused, so the rule is
+  // read off the chip itself — this is what the card prints the day it returns
+  assert.equal(feeChip(snapshot(), "rubPerUsd.kwikpay"), "incl 1.2%");
 
   // the same distinction in the text tables, where it decides whether a reader
   // still has to subtract the fee by hand
   const message = amountMessage("sendRub", 10000, snapshot());
   assert.match(message, /\* Avsnd fee 79₽ \(not included\)/);
-  assert.match(message, /\* Kwik fee 1\.2% \(included in rate\)/);
+});
+
+test("a paused source is neither asked nor shown", () => {
+  // the cycle never talks to it, so no failure of its can reach the snapshot
+  assert.deepEqual(
+    providers.map((provider) => provider.name),
+    ["unired", "multitransfer", "avosend", "kursi", "cbr"]
+  );
+
+  // and a quote stored before the pause is carried, never rendered
+  const paused = snapshot();
+  assert.equal(paused.quotes["rubPerUsd.kwikpay"].value, 86.4);
+
+  [
+    ratesMessage(paused),
+    ratesCaption(paused),
+    amountMessage("sendRub", 10000, paused),
+    amountMessage("needRubForUsd", 100, paused),
+    ratesCard(paused),
+  ].forEach((rendered) => assert.doesNotMatch(rendered, /Kwik/));
 });
 
 test("card highlights the best cell of every table", () => {
@@ -1140,8 +1155,8 @@ test("card runs a leader from the name to the number without touching either", (
     right: Number(match[1]) + Number(match[3]),
   }));
 
-  // one per row: six transfers, four exchanges, the direct rate and the matrix
-  assert.equal(leaders.length, 16);
+  // one per row: five transfers, four exchanges, the direct rate and the matrix
+  assert.equal(leaders.length, 14);
   leaders.forEach((leader) => {
     // it sits on the row's optical middle, a cap above the baseline it serves
     const row = numbers.filter(
@@ -1166,7 +1181,7 @@ test("card runs a leader from the name to the number without touching either", (
   // n/a the same way
   assert.equal(
     ratesCard(snapshot({ quotes: {} })).split("stroke-dasharray").length - 1,
-    16
+    14
   );
 });
 
