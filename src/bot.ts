@@ -194,7 +194,7 @@ bot.command(["start"], async (ctx) => {
   if (stored.isErr()) console.error("user not registered", stored.error);
 
   await ctx.reply(
-    `Hello! This bot watches ₽ → $ transfer rates (Unired, MultiTransfer, Avosend) and $ → ₾ exchange rates (Kursi, BoG, TBC) in the Georgia direction, with CBR and NBG for reference. Click the "${getRatesButtonText}" or send me a sum.`,
+    `Hello! This bot watches ₽ → $ transfer rates (Unired, MultiTransfer, KwikPay) and $ → ₾ exchange rates (Kursi, BoG, TBC) in the Georgia direction, with CBR and NBG for reference. Click the "${getRatesButtonText}" or send me a sum.`,
     { reply_markup: keyboard }
   );
 });

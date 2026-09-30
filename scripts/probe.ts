@@ -1,7 +1,7 @@
-import { providers } from "../src/providers";
+import { registered } from "../src/providers";
 import { quote } from "../src/providers/kwikpay";
 import type { Payload } from "../src/providers/types";
-import { isValidRate, type RateId } from "../src/rates";
+import { isValidRate, paused, type RateId } from "../src/rates";
 
 const describe = (payload: Payload) => {
   const rates = Object.entries(payload.rates)
@@ -22,9 +22,7 @@ const describe = (payload: Payload) => {
 // KwikPay's commission is folded into its rate, which is only honest while the
 // commission stays proportional. One sum can never show that: a fixed part
 // would quietly ride along inside the rate and be wrong for every other sum,
-// so the check is the same rate coming back at two of them. KwikPay is paused,
-// so the cycle no longer asks it and this is the only thing that still does —
-// it is what has to pass before the pause is lifted
+// so the check is the same rate coming back at two of them
 const folded = async () => {
   const answers = await Promise.all(["100", "500"].map(quote));
   const nothing: Payload = { rates: {} };
@@ -51,14 +49,17 @@ const folded = async () => {
   console.info(`kwikpay: rate holds at 100$ and 500$ (${first}, ${second})`);
 };
 
-// hits every live endpoint and prints what parsed — the quickest way to tell
-// a broken provider from a broken parser
+// hits every live endpoint, paused sources included, and prints what parsed —
+// the quickest way to tell a broken provider from a broken parser
 const probe = async () => {
   const answers = await Promise.all(
-    providers.map(async (provider) => {
+    registered.map(async (provider) => {
       const started = Date.now();
       const result = await provider.fetch();
-      return { name: provider.name, result, ms: Date.now() - started };
+      const name = paused.includes(provider.name)
+        ? `${provider.name} (paused)`
+        : provider.name;
+      return { name, result, ms: Date.now() - started };
     })
   );
 

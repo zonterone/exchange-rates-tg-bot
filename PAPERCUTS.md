@@ -161,3 +161,11 @@ the previous image wrote — it has no key for the new id until the first update
 cycle lands, and that cycle waits on the MultiTransfer session mint (~20s from
 container start). Give the bot a cycle before diagnosing a missing rate, and
 check `db.json` for the key before suspecting the provider.
+
+## 2026-09-30 12:00 — claude-opus-5-5
+
+Swapping which source is paused (KwikPay → Avosend) → `npm run probe` iterated
+the already-filtered `providers`, so a paused source was only probed if it was
+KwikPay (via the special `folded` check). Fixed by probing `registered` and
+labelling paused ones; worth remembering that the probe must read the unfiltered
+list.

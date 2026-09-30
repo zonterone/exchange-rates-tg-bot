@@ -175,10 +175,9 @@ explain is dropped rather than passed to the formatters.
 
 - `npm test` — offline unit tests on recorded fixtures; must pass.
 - `npm run build` — the production bundle must compile clean.
-- `npm run probe` — hits every live endpoint the cycle asks, plus the paused
-  KwikPay, and prints what parsed; the
-  only check that catches a source that changed shape or a MultiTransfer mint
-  the antifraud has started refusing
+- `npm run probe` — hits every live endpoint, paused sources included (marked
+  `(paused)`), and prints what parsed; the only check that catches a source
+  that changed shape or a MultiTransfer mint the antifraud has started refusing
   ([ADR 0001](adr/0001-multitransfer-antifraud-session.md)). It also asks
   KwikPay for two different sums: its commission is folded into the rate, which
   only stays honest while that commission is proportional, and one sum can
