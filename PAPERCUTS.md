@@ -169,3 +169,17 @@ the already-filtered `providers`, so a paused source was only probed if it was
 KwikPay (via the special `folded` check). Fixed by probing `registered` and
 labelling paused ones; worth remembering that the probe must read the unfiltered
 list.
+
+## 2026-10-09 17:47 — claude-opus-5-5
+
+Diagnosing KwikPay's `failure=shape` → the word pointed at the parser, while the
+answer was well-formed livewire: `data.fee` was `null` because the site
+calculator stopped quoting Georgia, and the only place that says so is a notice
+inside `effects.html` ("доступен только в нашем приложении"). Replay the two
+updates for a country that still quotes (ARM) before touching the parse — if it
+returns a `fee` array, the direction is gone, not the shape.
+
+The control run itself misled first: `set -- $pair` in zsh does not split
+`"ARM USD"`, so the whole string went in as the country and an unknown country
+draws the same app-only notice as a withdrawn one. Pass the two words as
+separate arguments.
