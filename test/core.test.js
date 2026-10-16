@@ -34,7 +34,7 @@ const { multitransfer, parse: parseMultitransfer } = await import(
   "../src/providers/multitransfer"
 );
 const { parse: parseUnired } = await import("../src/providers/unired");
-const { isValidRate } = await import("../src/rates");
+const { isValidRate, paused } = await import("../src/rates");
 const { forget, remember, stored } = await import("../src/session");
 const { render } = await import("../src/table");
 const { pruneHistory } = await import("../src/trend");
@@ -95,6 +95,20 @@ const failing = (name, ids, failure) => ({
   ids,
   fetch: () => errAsync(failure),
 });
+
+// every source that charges a fee is paused, yet the chip and the note still
+// have to be checked on a real row: this draws one the way it will look the
+// day its pause is lifted
+const lifting = (names, run) => {
+  const before = [...paused];
+  paused.splice(0, paused.length, ...before.filter((name) => !names.includes(name)));
+
+  try {
+    return run();
+  } finally {
+    paused.splice(0, paused.length, ...before);
+  }
+};
 
 const silentlySync = (run) => {
   const error = console.error;
@@ -380,7 +394,6 @@ test("renders rates with legs, chain matrix and the best chain", () => {
       "Unrd     82.63      —      —",
       "MTCard   83.46      —      —",
       "MTCash   83.56      —      —",
-      "Avsnd*   85.05      —      —",
       "CBR      81.13      —      —",
       "",
       "$ → ₾  ₾/1$ · higher better",
@@ -395,10 +408,9 @@ test("renders rates with legs, chain matrix and the best chain", () => {
       "Unrd     31.55  31.84  31.84",
       "MTCard   31.87  32.16  32.16",
       "MTCash   31.91  32.20  32.20",
-      "Avsnd*   32.47  32.77  32.77",
     ].join("\n")
   );
-  assert.match(message, /\* Avsnd fee 79₽/);
+  assert.doesNotMatch(message, /fee/);
   assert.match(message, /CBR direct — 30\.91₽ per 1₾/);
   assert.match(message, /Best: Unrd → Kursi — 31\.55₽ per 1₾/);
   assert.match(
@@ -528,10 +540,8 @@ test("calculates what a sum buys through every provider pair", () => {
 
   assert.match(plain(message), /^Send 10 000₽/u);
   assert.match(block(message), /Unrd\s+121\.02/);
-  assert.match(block(message), /Avsnd\*\s+117\.58/);
   assert.match(block(message), /Unrd\s+316\.96 314\.05/);
   assert.match(message, /Best: Unrd → Kursi — 316\.96₾/);
-  assert.match(message, /\* Avsnd fee 79₽ \(not included\)/);
 });
 
 test("calculates roubles needed for a target sum", () => {
@@ -801,7 +811,6 @@ test("card ranks providers by profit with references pinned on top", () => {
   assert.ok(at("Unired") < at("MTCard"), "cheapest dollars first");
   // two payout methods of one provider rank against each other like any pair
   assert.ok(at("MTCard") < at("MTCash"));
-  assert.ok(at("MTCash") < at("Avosend"));
   assert.ok(at("NBG") < at("Kursi"), "reference first");
   assert.ok(at("Kursi") < at("BoG"), "most lari first");
   assert.ok(at("BoG") < at("TBC"), "ties break by name");
@@ -832,20 +841,22 @@ test("card marks a quote the update failed to refresh with a red exp chip", () =
 test("no chip is ever drawn over the number of its own row", () => {
   const base = staling(snapshot(), "rubPerUsd.avosend");
 
-  const roomy = ratesCard(base);
+  const roomy = lifting(["avosend"], () => ratesCard(base));
   assert.ok(roomy.includes(">exp</text>"), "the warning is drawn");
   assert.ok(roomy.includes(">fee 79₽</text>"), "and so is the fee beside it");
 
   // the widest fee the validator still accepts on a three-digit rouble rate:
   // the least room the name column can legally be left with
-  const svg = ratesCard({
-    ...base,
-    fees: { avosend: { fix: 9999.99, percent: 99.99 } },
-    quotes: {
-      ...base.quotes,
-      "rubPerUsd.avosend": { ...base.quotes["rubPerUsd.avosend"], value: 250.5 },
-    },
-  });
+  const svg = lifting(["avosend"], () =>
+    ratesCard({
+      ...base,
+      fees: { avosend: { fix: 9999.99, percent: 99.99 } },
+      quotes: {
+        ...base.quotes,
+        "rubPerUsd.avosend": { ...base.quotes["rubPerUsd.avosend"], value: 250.5 },
+      },
+    })
+  );
 
   assert.ok(svg.includes(">exp</text>"), "the warning is drawn either way");
 
@@ -882,28 +893,34 @@ test("no chip is ever drawn over the number of its own row", () => {
 });
 
 test("a fee in the rate is marked apart from a fee charged on top of it", () => {
-  const svg = ratesCard(snapshot());
+  const svg = lifting(["avosend", "kwikpay"], () => ratesCard(snapshot()));
 
   assert.ok(svg.includes(">fee 79₽</text>"), "Avosend bills its 79₽ beside the rate");
-  // the only source that folds its fee into the rate is paused, so the rule is
-  // read off the chip itself — this is what the card prints the day it returns
+  assert.ok(
+    svg.includes(">incl 1.2%</text>"),
+    "KwikPay's 1.2% is already inside the rate above it"
+  );
   assert.equal(feeChip(snapshot(), "rubPerUsd.kwikpay"), "incl 1.2%");
 
   // the same distinction in the text tables, where it decides whether a reader
   // still has to subtract the fee by hand
-  const message = amountMessage("sendRub", 10000, snapshot());
+  const message = lifting(["avosend", "kwikpay"], () =>
+    amountMessage("sendRub", 10000, snapshot())
+  );
   assert.match(message, /\* Avsnd fee 79₽ \(not included\)/);
+  assert.match(message, /\* Kwik fee 1\.2% \(included in rate\)/);
 });
 
 test("a paused source is neither asked nor shown", () => {
   // the cycle never talks to it, so no failure of its can reach the snapshot
   assert.deepEqual(
     providers.map((provider) => provider.name),
-    ["unired", "multitransfer", "avosend", "kursi", "cbr"]
+    ["unired", "multitransfer", "kursi", "cbr"]
   );
 
   // and a quote stored before the pause is carried, never rendered
   const paused = snapshot();
+  assert.equal(paused.quotes["rubPerUsd.avosend"].value, 85.05);
   assert.equal(paused.quotes["rubPerUsd.kwikpay"].value, 86.4);
 
   [
@@ -912,7 +929,7 @@ test("a paused source is neither asked nor shown", () => {
     amountMessage("sendRub", 10000, paused),
     amountMessage("needRubForUsd", 100, paused),
     ratesCard(paused),
-  ].forEach((rendered) => assert.doesNotMatch(rendered, /Kwik/));
+  ].forEach((rendered) => assert.doesNotMatch(rendered, /Avosend|Avsnd|Kwik/));
 });
 
 test("card highlights the best cell of every table", () => {
@@ -1078,7 +1095,7 @@ test("card reads the week in the same colours as the day", () => {
     })),
     { key: "gelPerUsd.kursi", value: 2.6155, updatedDate: now - day },
     // the rouble side of a row that went the other way
-    { key: "rubPerUsd.avosend", value: 84.0, updatedDate: now - day },
+    { key: "rubPerUsd.multitransfer", value: 82.41, updatedDate: now - day },
     { key: "rubPerUsd.cbr", value: 80.0, updatedDate: now - day },
   ];
   const svg = ratesCard(snapshot({ history }));
@@ -1155,8 +1172,8 @@ test("card runs a leader from the name to the number without touching either", (
     right: Number(match[1]) + Number(match[3]),
   }));
 
-  // one per row: five transfers, four exchanges, the direct rate and the matrix
-  assert.equal(leaders.length, 14);
+  // one per row: four transfers, four exchanges, the direct rate and the matrix
+  assert.equal(leaders.length, 12);
   leaders.forEach((leader) => {
     // it sits on the row's optical middle, a cap above the baseline it serves
     const row = numbers.filter(
@@ -1181,7 +1198,7 @@ test("card runs a leader from the name to the number without touching either", (
   // n/a the same way
   assert.equal(
     ratesCard(snapshot({ quotes: {} })).split("stroke-dasharray").length - 1,
-    14
+    12
   );
 });
 
