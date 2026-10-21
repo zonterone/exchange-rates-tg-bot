@@ -95,7 +95,13 @@ export const providerOf: Record<RateId, ProviderName> = {
 // already stored stay where they are — so lifting the pause is this one word
 export const paused: ProviderName[] = ["avosend", "kwikpay"];
 
-export const isPaused = (id: RateId) => paused.includes(providerOf[id]);
+// a single rate goes quiet while its source keeps quoting the others: the
+// source is still asked, only the row is gone. MultiTransfer stopped paying
+// dollars onto a Georgian card, while cash still quotes
+export const pausedRates: RateId[] = ["rubPerUsd.multitransfer"];
+
+export const isPaused = (id: RateId) =>
+  paused.includes(providerOf[id]) || pausedRates.includes(id);
 
 export const isRateId = (key: unknown): key is RateId =>
   rateIds.includes(key as RateId);

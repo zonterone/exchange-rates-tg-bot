@@ -81,6 +81,10 @@ quotes stored before the pause — and lifting the pause is the same one word.
 `npm run probe` still talks to a paused source: it is what says whether the
 source is worth bringing back.
 
+A single rate goes quiet the same way through `pausedRates`, when its source
+keeps quoting the others (MTCard, while MTCash still quotes): the source stays
+in the cycle, and only `ranked` drops the row.
+
 ## Naming and exports
 
 - Rate ids are `<unit>.<source>` (`rubPerUsd.unired`); the unit prefix decides

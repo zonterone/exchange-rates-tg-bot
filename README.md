@@ -5,8 +5,9 @@ the Georgia direction in two legs and the chain between them:
 
 - **₽ → $** money transfer rates: Unired, MultiTransfer (CBR for reference).
   MultiTransfer pays out two ways and quotes each separately, so it takes two
-  rows — `MTCard` onto a card, `MTCash` over a counter. Avosend and KwikPay are
-  paused: not fetched, not shown
+  rows — `MTCard` onto a card, `MTCash` over a counter. `MTCard` is paused:
+  MultiTransfer no longer pays dollars onto a Georgian card. Avosend and KwikPay
+  are paused: not fetched, not shown
 - **$ → ₾** exchange rates: kursi.ge, Bank of Georgia, TBC (NBG for reference)
 - **₽ → ₾** every transfer/exchange combination, so the cheapest route is
   visible, with the CBR direct rate beside it

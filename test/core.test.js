@@ -34,11 +34,15 @@ const { multitransfer, parse: parseMultitransfer } = await import(
   "../src/providers/multitransfer"
 );
 const { parse: parseUnired } = await import("../src/providers/unired");
-const { isValidRate, paused } = await import("../src/rates");
+const { isValidRate, paused, pausedRates } = await import("../src/rates");
 const { forget, remember, stored } = await import("../src/session");
 const { render } = await import("../src/table");
 const { pruneHistory } = await import("../src/trend");
 const { getStoredRates, updateRates } = await import("../src/updateRates");
+
+// MTCard is the row every stale and failure case below is read on; its pause
+// is lifted for the whole file and put back only where the pause is the subject
+const pausedRows = pausedRates.splice(0);
 
 const hour = 60 * 60 * 1000;
 const day = 24 * hour;
@@ -930,6 +934,28 @@ test("a paused source is neither asked nor shown", () => {
     amountMessage("needRubForUsd", 100, paused),
     ratesCard(paused),
   ].forEach((rendered) => assert.doesNotMatch(rendered, /Avosend|Avsnd|Kwik/));
+});
+
+test("a paused rate leaves its row while its source keeps quoting", () => {
+  // MultiTransfer is still asked: cash quotes, only the card row is gone
+  assert.ok(providers.some((provider) => provider.name === "multitransfer"));
+
+  pausedRates.push(...pausedRows);
+  try {
+    const shown = snapshot();
+    assert.doesNotMatch(ratesCaption(shown), /MTCard/);
+    [
+      ratesMessage(shown),
+      amountMessage("sendRub", 10000, shown),
+      amountMessage("needRubForUsd", 100, shown),
+      ratesCard(shown),
+    ].forEach((rendered) => {
+      assert.doesNotMatch(rendered, /MTCard/);
+      assert.match(rendered, /MTCash/);
+    });
+  } finally {
+    pausedRates.splice(0);
+  }
 });
 
 test("card highlights the best cell of every table", () => {

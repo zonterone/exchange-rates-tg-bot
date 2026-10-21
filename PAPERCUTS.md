@@ -183,3 +183,12 @@ The control run itself misled first: `set -- $pair` in zsh does not split
 `"ARM USD"`, so the whole string went in as the country and an unknown country
 draws the same app-only notice as a withdrawn one. Pass the two words as
 separate arguments.
+
+## 2026-10-21 — claude-opus-5-5
+
+Running `npm run probe` inside the Claude Code sandbox → every provider failed
+with `network error` even with the hosts allowed: Node's fetch ignores
+`HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1` is set (Node 24). And the
+MultiTransfer mint cannot run in the sandbox at all — Chrome dies at launch with
+`The browser is already running for …/puppeteer_dev_chrome_profile-…`, which
+reads like a stale lock but is the Seatbelt profile blocking it.
