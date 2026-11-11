@@ -26,6 +26,7 @@ const { amountMessage, cold, ratesCaption, ratesMessage } = await import(
 const { providers } = await import("../src/providers");
 const { parse: parseAvosend } = await import("../src/providers/avosend");
 const { parse: parseCbr } = await import("../src/providers/cbr");
+const { parse: parseKoronapay } = await import("../src/providers/koronapay");
 const { parse: parseKursi } = await import("../src/providers/kursi");
 const { bootstrap: bootstrapKwikpay, parse: parseKwikpay } = await import(
   "../src/providers/kwikpay"
@@ -66,6 +67,7 @@ const snapshot = (overrides = {}) => ({
     "rubPerUsd.multitransferCash": 83.56,
     "rubPerUsd.avosend": 85.05,
     "rubPerUsd.kwikpay": 86.4,
+    "rubPerUsd.koronapay": 83.62,
     "rubPerUsd.cbr": 81.13,
     "gelPerUsd.kursi": 2.619,
     "gelPerUsd.bog": 2.595,
@@ -169,6 +171,9 @@ test("parses every provider from a live response fixture", () => {
     rates: { "rubPerUsd.kwikpay": 86.398 },
     fee: { fix: 0, percent: 1.2 },
   });
+  assert.deepEqual(parseKoronapay(json("koronapay.json"))._unsafeUnwrap(), {
+    "rubPerUsd.koronapay": 83.6179,
+  });
 });
 
 test("reads the livewire endpoint and the calculator snapshot off the page", () => {
@@ -203,6 +208,8 @@ test("reports a shape change when nothing readable comes back", () => {
   );
   assert.equal(reason(parseKursi([{ baseCurrencyCode: "GEL" }])), "shape");
   assert.equal(reason(parseCbr({ Valute: {} })), "shape");
+  assert.equal(reason(parseKoronapay({ code: 3, type: "error" })), "shape");
+  assert.equal(reason(parseKoronapay([])), "shape");
   assert.equal(reason(bootstrapKwikpay("<html>no calculator</html>")), "shape");
   assert.equal(reason(parseKwikpay({ components: [] })), "shape");
   assert.equal(
@@ -305,6 +312,23 @@ test("keeps parsing when a neighbour in the list is broken", () => {
   });
 });
 
+test("reads the dollar tariff and never a lari one the range would let through", () => {
+  const [usd] = json("koronapay.json");
+  const gel = {
+    ...usd,
+    receivingCurrency: { id: "981", code: "GEL", name: "Грузинский лари" },
+    exchangeRate: 32.2392,
+  };
+
+  // 32 ₽ for a lari is a plausible rouble price of a dollar, so only the
+  // currency on the tariff can tell the two apart
+  assert.equal(isValidRate("rubPerUsd.koronapay", gel.exchangeRate), true);
+  assert.equal(parseKoronapay([gel])._unsafeUnwrapErr(), "shape");
+  assert.deepEqual(parseKoronapay([gel, "nonsense", usd])._unsafeUnwrap(), {
+    "rubPerUsd.koronapay": 83.6179,
+  });
+});
+
 test("reports no fee rather than a zero one when the shape drifts", () => {
   const zero =
     '{"fromScale":2,"convertRate":"0.0118","tariffs":[{"fix":"0","percent":"0"}]}';
@@ -398,6 +422,7 @@ test("renders rates with legs, chain matrix and the best chain", () => {
       "Unrd     82.63      —      —",
       "MTCard   83.46      —      —",
       "MTCash   83.56      —      —",
+      "Korona   83.62      —      —",
       "CBR      81.13      —      —",
       "",
       "$ → ₾  ₾/1$ · higher better",
@@ -412,6 +437,7 @@ test("renders rates with legs, chain matrix and the best chain", () => {
       "Unrd     31.55  31.84  31.84",
       "MTCard   31.87  32.16  32.16",
       "MTCash   31.91  32.20  32.20",
+      "Korona   31.93  32.22  32.22",
     ].join("\n")
   );
   assert.doesNotMatch(message, /fee/);
@@ -421,7 +447,6 @@ test("renders rates with legs, chain matrix and the best chain", () => {
     message,
     /Updated 5 min ago\nRates are usually updated every 30 minutes/
   );
-  assert.doesNotMatch(message, /KoronaPay/);
 });
 
 test("shows a 24h move and the distance from the week once history allows it", () => {
@@ -919,7 +944,7 @@ test("a paused source is neither asked nor shown", () => {
   // the cycle never talks to it, so no failure of its can reach the snapshot
   assert.deepEqual(
     providers.map((provider) => provider.name),
-    ["unired", "multitransfer", "kursi", "cbr"]
+    ["unired", "multitransfer", "koronapay", "kursi", "cbr"]
   );
 
   // and a quote stored before the pause is carried, never rendered
@@ -1198,8 +1223,8 @@ test("card runs a leader from the name to the number without touching either", (
     right: Number(match[1]) + Number(match[3]),
   }));
 
-  // one per row: four transfers, four exchanges, the direct rate and the matrix
-  assert.equal(leaders.length, 12);
+  // one per row: five transfers, four exchanges, the direct rate and the matrix
+  assert.equal(leaders.length, 14);
   leaders.forEach((leader) => {
     // it sits on the row's optical middle, a cap above the baseline it serves
     const row = numbers.filter(
@@ -1224,7 +1249,7 @@ test("card runs a leader from the name to the number without touching either", (
   // n/a the same way
   assert.equal(
     ratesCard(snapshot({ quotes: {} })).split("stroke-dasharray").length - 1,
-    12
+    14
   );
 });
 

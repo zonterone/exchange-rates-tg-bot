@@ -6,6 +6,7 @@ export const rateIds = [
   "rubPerUsd.multitransferCash",
   "rubPerUsd.avosend",
   "rubPerUsd.kwikpay",
+  "rubPerUsd.koronapay",
   "rubPerUsd.cbr",
   "gelPerUsd.kursi",
   "gelPerUsd.bog",
@@ -23,6 +24,7 @@ export const providerNames = [
   "multitransfer",
   "avosend",
   "kwikpay",
+  "koronapay",
   "kursi",
   "cbr",
 ] as const;
@@ -43,6 +45,7 @@ export const feeModeOf: Record<ProviderName, FeeMode> = {
   multitransfer: "none",
   avosend: "onTop",
   kwikpay: "inRate",
+  koronapay: "none",
   kursi: "none",
   cbr: "none",
 };
@@ -82,6 +85,7 @@ export const providerOf: Record<RateId, ProviderName> = {
   "rubPerUsd.multitransferCash": "multitransfer",
   "rubPerUsd.avosend": "avosend",
   "rubPerUsd.kwikpay": "kwikpay",
+  "rubPerUsd.koronapay": "koronapay",
   "rubPerUsd.cbr": "cbr",
   "gelPerUsd.kursi": "kursi",
   "gelPerUsd.bog": "kursi",
@@ -150,6 +154,7 @@ export const transfers: Entry[] = [
   { id: "rubPerUsd.multitransferCash", label: "MTCash", short: "MTCash" },
   { id: "rubPerUsd.avosend", label: "Avosend", short: "Avsnd" },
   { id: "rubPerUsd.kwikpay", label: "KwikPay", short: "Kwik" },
+  { id: "rubPerUsd.koronapay", label: "KoronaPay", short: "Korona" },
 ];
 
 export const exchanges: Entry[] = [

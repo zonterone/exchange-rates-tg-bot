@@ -1,0 +1,27 @@
+[
+  {
+    "sendingCurrency": {
+      "id": "810",
+      "code": "RUB",
+      "name": "Российский рубль"
+    },
+    "sendingAmount": 8361790,
+    "sendingAmountDiscount": 0,
+    "sendingAmountWithoutCommission": 8361790,
+    "sendingCommission": 0,
+    "sendingCommissionDiscount": 0,
+    "sendingTransferCommission": 0,
+    "paidNotificationCommission": 0,
+    "receivingCurrency": {
+      "id": "840",
+      "code": "USD",
+      "name": "Доллар США"
+    },
+    "receivingAmount": 100000,
+    "exchangeRate": 83.6179,
+    "exchangeRateType": "direct",
+    "exchangeRateDiscount": 0,
+    "profit": 0,
+    "properties": {}
+  }
+]

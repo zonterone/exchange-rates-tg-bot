@@ -192,3 +192,15 @@ with `network error` even with the hosts allowed: Node's fetch ignores
 MultiTransfer mint cannot run in the sandbox at all — Chrome dies at launch with
 `The browser is already running for …/puppeteer_dev_chrome_profile-…`, which
 reads like a stale lock but is the Seatbelt profile blocking it.
+
+## 2026-11-11 17:30 — claude-opus-5-5
+
+Exploring the KoronaPay tariffs endpoint with curl (sums, payout methods,
+`accept` versions) → after ~20 requests in a few minutes `api.koronapay.com`
+stopped accepting TCP connections at all, browser headers or not, while
+`koronapay.com` itself kept answering: an IP-level block, not an error page.
+homeLab leaves through the same home IP, so a deploy during the block reads as
+KoronaPay `unavailable` on the first cycles. Record one response early and work
+against the fixture; space live checks out, and run `npm run probe` before a
+deploy to see the block has lifted. It held for at least 35 minutes (17:20 →
+still down at 17:55) and was gone by 19:22.

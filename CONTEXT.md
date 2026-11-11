@@ -28,8 +28,8 @@ _Avoid_: cross rate, official rate
 
 **Transfer provider**:
 A service that moves roubles out of Russia and pays out dollars in Georgia
-(Unired, MultiTransfer, Avosend, KwikPay). Quotes the `₽ → $` leg — once per
-**payout method** it offers.
+(Unired, MultiTransfer, Avosend, KwikPay, KoronaPay). Quotes the `₽ → $` leg —
+once per **payout method** it offers.
 _Avoid_: bank, exchanger, service
 
 **Payout method**:

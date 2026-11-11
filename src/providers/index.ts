@@ -1,6 +1,7 @@
 import { paused } from "../rates";
 import { avosend } from "./avosend";
 import { cbr } from "./cbr";
+import { koronapay } from "./koronapay";
 import { kursi } from "./kursi";
 import { kwikpay } from "./kwikpay";
 import { multitransfer } from "./multitransfer";
@@ -14,6 +15,7 @@ export const registered: Provider[] = [
   multitransfer,
   avosend,
   kwikpay,
+  koronapay,
   kursi,
   cbr,
 ];
