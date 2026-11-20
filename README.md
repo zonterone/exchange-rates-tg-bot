@@ -3,12 +3,12 @@
 Bot updates rates every 30 minutes and saves them to a db.json file. It watches
 the Georgia direction in two legs and the chain between them:
 
-- **₽ → $** money transfer rates: Unired, MultiTransfer, KoronaPay (CBR for
+- **₽ → $** money transfer rates: MultiTransfer, KoronaPay (CBR for
   reference). KoronaPay pays out over a counter only.
   MultiTransfer pays out two ways and quotes each separately, so it takes two
   rows — `MTCard` onto a card, `MTCash` over a counter. `MTCard` is paused:
-  MultiTransfer no longer pays dollars onto a Georgian card. Avosend and KwikPay
-  are paused: not fetched, not shown
+  MultiTransfer no longer pays dollars onto a Georgian card. Unired, Avosend and
+  KwikPay are paused: not fetched, not shown
 - **$ → ₾** exchange rates: kursi.ge, Bank of Georgia, TBC (NBG for reference)
 - **₽ → ₾** every transfer/exchange combination, so the cheapest route is
   visible, with the CBR direct rate beside it

@@ -48,7 +48,7 @@ _Avoid_: bank, exchanger
 **Paused source**:
 A source the bot stops talking to and stops showing: the cycle does not ask it,
 so it reports no failure, and it is left out of every table, chip, note and best
-line (Avosend and KwikPay are paused). Its file, ids, fee mode and the quotes stored before
+line (Unired, Avosend and KwikPay are paused). Its file, ids, fee mode and the quotes stored before
 the pause all stay — the pause itself is one name in `paused`, and lifting it is
 the same one word. A single rate pauses the same way through `pausedRates`
 while its source keeps being asked for the rest (MTCard is paused, MTCash is

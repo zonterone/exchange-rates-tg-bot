@@ -97,7 +97,7 @@ export const providerOf: Record<RateId, ProviderName> = {
 // a paused source is neither asked nor shown: it leaves the fetch list and
 // every rendered row at once, while its module, ids, fee mode and the quotes
 // already stored stay where they are — so lifting the pause is this one word
-export const paused: ProviderName[] = ["avosend", "kwikpay"];
+export const paused: ProviderName[] = ["unired", "avosend", "kwikpay"];
 
 // a single rate goes quiet while its source keeps quoting the others: the
 // source is still asked, only the row is gone. MultiTransfer stopped paying

@@ -204,3 +204,69 @@ KoronaPay `unavailable` on the first cycles. Record one response early and work
 against the fixture; space live checks out, and run `npm run probe` before a
 deploy to see the block has lifted. It held for at least 35 minutes (17:20 →
 still down at 17:55) and was gone by 19:22.
+
+## 2026-11-11 19:35 — claude-opus-5-5
+
+Building the image for a deploy → `docker buildx build` died on
+`lookup registry-1.docker.io on [::1]:53: … connection refused`, and
+`colima restart` did not help. Inside the VM `/etc/resolv.conf` was a dangling
+link to the stub of a `systemd-resolved` the image no longer has, and
+`dnsmasq` — the resolver on `[::1]:53` — refuses to start without that file as
+its upstream. Replacing the link with `nameserver 192.168.5.2` (the DNS the
+lima gateway hands out over DHCP, see `networkctl status eth0`) fixed it:
+`colima ssh -- sh -c 'sudo rm /etc/resolv.conf && echo "nameserver 192.168.5.2" | sudo tee /etc/resolv.conf'`.
+
+## 2026-11-11 19:42 — claude-opus-5-5
+
+Replacing the container on homeLab → `ssh homeLab` failed with `No route to
+host`, then `Operation timed out` / `Host is down`, while the same host answered
+a moment earlier: the ZeroTier path to it dropped 60% of pings. From the home
+network the LAN address the ZeroTier peer reports (`zerotier-cli listpeers`,
+192.168.2.111) answers in 3 ms; `ssh -o HostName=192.168.2.111 -o
+HostKeyAlias=192.168.192.2 -o StrictHostKeyChecking=yes homeLab` reaches it and
+still proves it is homeLab by its host key. Worth doing before the stop/rename/
+run step — a session lost between `docker stop` and `docker run` leaves no bot.
+
+## 2026-11-18 16:50 — claude-fable-5-2
+
+Diagnosing slow replies on the host → `ssh homeLab`, the alias `DEPLOY.local.md`
+and `rex hosts` both use, failed with `Could not resolve hostname homelab`. The
+entry in `~/.ssh/config` is now `Host homelab`, and `Host` patterns match case
+sensitively, so the mixed-case name falls through to DNS. `ssh homelab` works.
+The alias resolved on 2026-11-11, so the config entry was probably renamed
+since; either rename it back or update `DEPLOY.local.md` and the Rex host.
+
+## 2026-11-20 13:54 — claude-fable-5-2
+
+Moving the bot from the dead homelab to `cloud.ru` → `api.telegram.org` is
+unreachable from that host: TCP to :443 opens, the TLS handshake never
+completes (`curl` exit 28), so the bot would start and hang on `getMe`. The
+rate providers all answer from there. Fix that needs no rebuild: a
+`alpine/socat` container on the bot's docker network with the network alias
+`api.telegram.org`, relaying :443 through the lightsail proxy
+(`PROXY:192.168.192.10:api.telegram.org:443,proxyport=3128`, the proxy n8n on
+that host already uses). Also: `BOT_TOKEN` lived only in the homelab
+container's env, so it went down with the disk.
+
+## 2026-11-20 19:48 — claude-fable-5-2
+
+Three sources (cbr, kursi, unired) went "provider unavailable" on `cloud.ru`
+while `curl` and python connects to the same hosts worked → the VM's network
+was dropping the first SYN of about a third of new connections (37 SYN for 25
+connects to ya.ru), each retransmit a second later got through. Node's
+happy-eyeballs gives a dual-stack host 250 ms per address
+(`autoSelectFamilyAttemptTimeout`), so one lost SYN is an instant
+`ETIMEDOUT` and ky's quick retries hit the same wall. Inside the container,
+`NODE_OPTIONS="--max-old-space-size=192 --network-family-autoselection-attempt-timeout=5000"`
+took cbr from 7/12 to 12/12 fetches. Not applied to the running container.
+
+## 2026-11-20 19:48 — claude-fable-5-2
+
+Rebooting `lightsail` 15 s after the bot started on `cloud.ru` → the bot
+logged "Bot started" and then answered nothing for 8 min 23 s: its first
+`getUpdates` hung on a connection through the Telegram relay that died with
+the proxy host, and grammY waits out its 500 s client timeout before
+reconnecting. Telegram's `getWebhookInfo` showed the queue
+(`pending_update_count=2`), which is the quick way to tell a deaf bot from a
+bot nobody wrote to. TCP keepalive on the socat relay would cut the gap to
+about a minute.

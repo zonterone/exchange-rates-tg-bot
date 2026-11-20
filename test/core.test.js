@@ -45,6 +45,11 @@ const { getStoredRates, updateRates } = await import("../src/updateRates");
 // is lifted for the whole file and put back only where the pause is the subject
 const pausedRows = pausedRates.splice(0);
 
+// Unired is the row the rankings, trends and sums below are read on, so its
+// pause is lifted the same way
+const pausedSources = paused.splice(0);
+paused.push(...pausedSources.filter((name) => name !== "unired"));
+
 const hour = 60 * 60 * 1000;
 const day = 24 * hour;
 const now = Date.UTC(2026, 0, 8, 12);
@@ -944,21 +949,30 @@ test("a paused source is neither asked nor shown", () => {
   // the cycle never talks to it, so no failure of its can reach the snapshot
   assert.deepEqual(
     providers.map((provider) => provider.name),
-    ["unired", "multitransfer", "koronapay", "kursi", "cbr"]
+    ["multitransfer", "koronapay", "kursi", "cbr"]
   );
 
   // and a quote stored before the pause is carried, never rendered
-  const paused = snapshot();
-  assert.equal(paused.quotes["rubPerUsd.avosend"].value, 85.05);
-  assert.equal(paused.quotes["rubPerUsd.kwikpay"].value, 86.4);
+  const carried = snapshot();
+  assert.equal(carried.quotes["rubPerUsd.unired"].value, 82.63);
+  assert.equal(carried.quotes["rubPerUsd.avosend"].value, 85.05);
+  assert.equal(carried.quotes["rubPerUsd.kwikpay"].value, 86.4);
 
-  [
-    ratesMessage(paused),
-    ratesCaption(paused),
-    amountMessage("sendRub", 10000, paused),
-    amountMessage("needRubForUsd", 100, paused),
-    ratesCard(paused),
-  ].forEach((rendered) => assert.doesNotMatch(rendered, /Avosend|Avsnd|Kwik/));
+  const lifted = paused.splice(0);
+  paused.push(...pausedSources);
+  try {
+    [
+      ratesMessage(carried),
+      ratesCaption(carried),
+      amountMessage("sendRub", 10000, carried),
+      amountMessage("needRubForUsd", 100, carried),
+      ratesCard(carried),
+    ].forEach((rendered) =>
+      assert.doesNotMatch(rendered, /Unired|Unrd|Avosend|Avsnd|Kwik/)
+    );
+  } finally {
+    paused.splice(0, paused.length, ...lifted);
+  }
 });
 
 test("a paused rate leaves its row while its source keeps quoting", () => {
