@@ -1,11 +1,13 @@
 import {
   Bot,
+  HttpError,
   InlineKeyboard,
   InlineQueryResultBuilder,
   InputFile,
   Keyboard,
   type Context,
 } from "grammy";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import { randomUUID } from "node:crypto";
 import { ResultAsync, err, ok, safeTry } from "neverthrow";
 import type { Result } from "neverthrow";
@@ -26,13 +28,63 @@ import type { Snapshot } from "./rates";
 import { read, write } from "./result";
 import { getStoredRates } from "./updateRates";
 
-// the one sanctioned throw: this runs at import, the process cannot start
+// the sanctioned throws: this runs at import, the process cannot start
 // without a token, and there is no caller to hand a Result to
 if (!env.token) {
   throw new Error("BOT_TOKEN is required, put it in .env");
 }
 
-export const bot = new Bot(env.token);
+// a proxy that cannot be read must not quietly become a direct connection:
+// where Telegram is blocked that is a bot that starts and never answers
+const proxy = env.proxy ? URL.parse(env.proxy) : undefined;
+if (proxy === null) {
+  throw new Error("TELEGRAM_PROXY_URL is not a URL, e.g. http://host:3128");
+}
+
+// the agent belongs to this client alone, so the providers and the browser
+// keep connecting directly; like grammy's own agent it keeps sockets alive
+export const bot = new Bot(env.token, {
+  client: proxy
+    ? {
+        baseFetchConfig: {
+          agent: new HttpsProxyAgent(proxy, { keepAlive: true }),
+        },
+      }
+    : {},
+});
+
+const route = proxy ? `through the proxy ${proxy.host}` : "directly";
+
+// node-fetch quotes the whole url in its message, and the token is in the url
+const reason = (cause: unknown) => {
+  const error = cause instanceof HttpError ? cause.error : cause;
+  const text = error instanceof Error ? error.message : String(error);
+
+  return text.replaceAll(bot.token, "<token>");
+};
+
+// grammy waits out a failed poll in silence — its own log sits behind DEBUG —
+// so an outage is said here, once when it starts and once when it ends
+let reachable = true;
+
+bot.api.config.use((prev, method, payload, signal) => {
+  const call = prev(method, payload, signal);
+
+  // grammy gets its call back untouched; this only watches how it ends
+  void ResultAsync.fromPromise(call, (cause) => {
+    // a poll cancelled by `bot.stop()` rejects too, and is no outage
+    if (reachable && !signal?.aborted) {
+      console.error(`Telegram is unreachable ${route}:`, reason(cause));
+      reachable = false;
+    }
+    return "unreachable" as const;
+  }).andTee(() => {
+    if (!reachable) console.info("Telegram is reachable again");
+    reachable = true;
+  });
+
+  return call;
+});
 
 const getRatesButtonText = "Get rates 💸";
 const keyboard = new Keyboard()
@@ -154,6 +206,10 @@ export const setupBotCommands = () =>
   ResultAsync.fromPromise(
     bot.api.setMyCommands(Object.values(commandsList)),
     (error) => {
+      // an outage is announced where every call is watched, and unlike a
+      // refusal it is worth waiting out
+      if (error instanceof HttpError) return "unreachable" as const;
+
       console.error("setting bot commands failed", error);
       return "telegram" as const;
     }

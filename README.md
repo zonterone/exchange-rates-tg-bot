@@ -103,6 +103,27 @@ place, `src/env.ts`.
 | `CHROMIUM_PATH`      | Development only       | Browser that mints the MultiTransfer session, see below |
 | `DB_PATH`            | Optional               | Database location, default `db/db.json`|
 | `ASSETS_PATH`        | Optional               | Font directory, default `assets/`      |
+| `TELEGRAM_PROXY_URL` | Optional               | HTTP proxy for the Telegram Bot API, see below |
+
+### Telegram proxy
+
+Where `api.telegram.org` cannot be reached directly, point `TELEGRAM_PROXY_URL`
+at an HTTP proxy that supports `CONNECT`:
+
+```sh
+TELEGRAM_PROXY_URL=http://proxy.example:3128
+```
+
+Every Bot API request — long polling, replies, the card upload — is then
+tunnelled through it; TLS stays end to end with Telegram. Nothing else is: the
+rate providers and the headless browser keep connecting directly, so do not
+swap this for a process-wide `HTTPS_PROXY`. Unset, the bot talks to Telegram
+directly.
+
+A value that is not a URL stops the bot at start. A proxy that is out of reach
+does not: the bot logs `Telegram is unreachable through the proxy <host>: …`
+once, keeps retrying, and logs `Telegram is reachable again` when it gets
+through.
 
 ### MultiTransfer session
 

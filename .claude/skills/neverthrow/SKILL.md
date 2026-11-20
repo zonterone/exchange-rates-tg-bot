@@ -231,8 +231,9 @@ Partial success is not failure: a provider that reads three of its four rates re
 
 - Never in domain, provider, presentation or persistence code. Wrap the throwing call in
   `fromThrowable` / `fromPromise` at the point of contact instead.
-- `src/bot.ts` throws once at import when `BOT_TOKEN` is missing: the process cannot start
-  without it, and there is no caller to hand a `Result` to. That is the only sanctioned throw.
+- `src/bot.ts` throws at import when `BOT_TOKEN` is missing or `TELEGRAM_PROXY_URL` is not a
+  URL: the process cannot start without the one or reach Telegram as asked without the other,
+  and there is no caller to hand a `Result` to. Those are the only sanctioned throws.
 - `grammy`'s `bot.catch` stays — it is the framework's own edge, not our error handling.
 
 ## Common mistakes to avoid

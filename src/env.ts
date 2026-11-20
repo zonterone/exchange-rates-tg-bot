@@ -8,6 +8,9 @@ config({ quiet: true });
 // key with no value, and a blank path would resolve to nonsense
 export const env = {
   token: process.env["BOT_TOKEN"] || undefined,
+  // the http proxy every Telegram request is tunnelled through, and nothing
+  // else is: the providers and the browser stay direct
+  proxy: process.env["TELEGRAM_PROXY_URL"] || undefined,
   // the browser that mints the MultiTransfer antifraud session, see
   // docs/adr/0001; puppeteer-core ships no binary of its own, and the image
   // sets this to the chromium it installed

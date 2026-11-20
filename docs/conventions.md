@@ -29,7 +29,7 @@ modules read the snapshot and nothing else.
 | `src/messages.ts`    | HTML messages and the card caption                            |
 | `src/card.ts`        | SVG card layout and theme                                     |
 | `src/image.ts`       | resvg rasterisation and the per-update PNG cache              |
-| `src/bot.ts`         | grammY handlers, sum parsing, card `file_id` reuse            |
+| `src/bot.ts`         | grammY handlers, sum parsing, card `file_id` reuse, the Telegram proxy |
 | `src/db.ts`          | json-db init and the oversized-file guard                     |
 | `src/session.ts`     | mints and caches the MultiTransfer antifraud session in headless chromium |
 | `src/env.ts`         | loads `.env` and exposes every environment variable           |
@@ -126,7 +126,7 @@ Failure is a value with a type: `Result` / `ResultAsync` from `neverthrow`
   provider's `Failure` (`session` / `unavailable` / `shape`) is a domain word
   and is defined in `CONTEXT.md`; the rest are one-word technical vocabularies
   local to their boundary (`"cold" | "unreadable"`, `"store"`, `"render"`,
-  `"unmovable"`, `"telegram"`, `"unidentified"`). One word, one reason, no
+  `"unmovable"`, `"telegram"`, `"unreachable"`, `"unidentified"`). One word, one reason, no
   glossary entry needed unless a user ever reads it.
 - Absence is not failure. A missing quote is `undefined`, a trend with too
   little history is `null`, no candidate to compare is `null` — those render as
@@ -138,8 +138,8 @@ Failure is a value with a type: `Result` / `ResultAsync` from `neverthrow`
   `src/providers/types.ts` (`request`, `body`). Reach for one before writing a
   `fromPromise` by hand — that is how the log stays in one place.
 - `_unsafeUnwrap()` belongs in tests and nowhere else. Three edges are exempt
-  from "nothing throws": the missing `BOT_TOKEN` at import in `src/bot.ts`,
-  grammY's own `bot.catch`, and the outermost `main().catch` / `probe().catch`
+  from "nothing throws": the missing `BOT_TOKEN` and the unreadable
+  `TELEGRAM_PROXY_URL` at import in `src/bot.ts`, grammY's own `bot.catch`, and the outermost `main().catch` / `probe().catch`
   — a net under an unforeseen rejection, not a way to handle a known one.
 
 ## Theming
@@ -161,6 +161,15 @@ with `docker run --env-file`. Missing configuration degrades — with no
 than throwing — except `BOT_TOKEN`, without which the process cannot start.
 The image sets `CHROMIUM_PATH` itself, so nothing but the token is required to
 run it.
+
+`TELEGRAM_PROXY_URL` is the one variable that fails closed. Unset, Telegram is
+reached directly; set, every Bot API request is tunnelled through that proxy by
+an agent that belongs to the grammY client alone — never a process-wide
+`HTTPS_PROXY`, which would drag the providers and the browser along. A value
+that is not a URL stops the process at import rather than falling back to a
+direct connection: where Telegram is blocked, that fallback is a bot that
+starts and never answers. A proxy that is merely out of reach is not fatal —
+the outage is logged once, the calls are retried, and its end is logged too.
 
 ## Persistence
 

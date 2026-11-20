@@ -1,6 +1,7 @@
 import { CronJob } from "cron";
 import { GrammyError, HttpError } from "grammy";
 import { ResultAsync } from "neverthrow";
+import { setTimeout as sleep } from "node:timers/promises";
 import { match, P } from "ts-pattern";
 import { bot, setupBotCommands } from "./bot";
 import { updateRates } from "./updateRates";
@@ -26,13 +27,34 @@ const updateRatesCron = new CronJob("*/30 * * * *", async () => {
   await updateRates();
 });
 
+let stopping = false;
+
 const stop = () => {
+  stopping = true;
   void bot.stop();
   updateRatesCron.stop();
 };
 
+// the pause grammy itself takes between two failed polls
+const pause = 3_000;
+
+// Telegram out of reach is waited out rather than exited on: a restart would
+// meet the same outage, and this way the bot comes up by itself when it ends
+const setup = async () => {
+  while (true) {
+    const commands = await setupBotCommands();
+    if (stopping || commands.isOk() || commands.error === "telegram") {
+      return commands;
+    }
+
+    await sleep(pause);
+  }
+};
+
 const main = async () => {
-  const commands = await setupBotCommands();
+  const commands = await setup();
+  if (stopping) return;
+
   if (commands.isErr()) {
     // the cause is logged where it was caught; this only says what it costs
     console.error("Bot setup failed, not starting");

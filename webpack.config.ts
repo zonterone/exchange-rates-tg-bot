@@ -30,6 +30,9 @@ const config: webpack.Configuration = {
     bufferutil: "commonjs bufferutil",
     "utf-8-validate": "commonjs utf-8-validate",
     "proxy-agent": "commonjs proxy-agent",
+    // https-proxy-agent imports it only to authenticate against a Negotiate
+    // proxy, which the Telegram proxy is not; the import sits in a try/catch
+    kerberos: "commonjs kerberos",
   },
   // yargs assembles a require path at runtime for the @puppeteer/browsers cli,
   // which nothing here calls; webpack cannot see that and warns regardless
