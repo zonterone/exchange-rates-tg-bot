@@ -24,7 +24,10 @@ FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV NODE_OPTIONS=--max-old-space-size=192
+# the host has no IPv6 and drops SYNs: happy eyeballs abandons an IPv4 connect
+# after 250ms and ends on a dual-stack source's dead IPv6 address, failing cbr
+# and kursi; connecting over IPv4 alone leaves the SYN retry to the kernel
+ENV NODE_OPTIONS="--max-old-space-size=192 --no-network-family-autoselection --dns-result-order=ipv4first"
 
 # MultiTransfer hands out no session id: one is minted by loading their page in
 # a real browser (docs/adr/0001). alpine has moved the binary between

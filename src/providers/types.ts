@@ -31,6 +31,14 @@ export const api = ky.create({
 export const userAgent =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36";
 
+// ky's message only names the request; why it failed (ETIMEDOUT, ECONNRESET,
+// ENOTFOUND) is the code on a cause further down, under fetch's own TypeError
+const codeOf = (cause: unknown): string | undefined => {
+  if (!(cause instanceof Error)) return undefined;
+  if ("code" in cause && typeof cause.code === "string") return cause.code;
+  return codeOf(cause.cause);
+};
+
 // every provider bridges ky the same way: a request that never came back with
 // an answer is unavailable to the caller, and only that word travels on — so
 // the cause is logged here, the last place it exists
@@ -38,8 +46,13 @@ export const request = <T>(name: ProviderName, promise: PromiseLike<T>) =>
   ResultAsync.fromPromise(promise, (cause) => {
     // ky hangs the whole Request off its errors and node prints it headers and
     // all — one of those headers is a live antifraud session id, so only the
-    // message travels to the log
-    console.error(name, cause instanceof Error ? cause.message : cause);
+    // message and the code travel to the log
+    const code = codeOf(cause);
+    console.error(
+      name,
+      cause instanceof Error ? cause.message : cause,
+      ...(code === undefined ? [] : [code])
+    );
     return "unavailable" as const;
   });
 

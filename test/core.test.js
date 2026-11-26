@@ -1,6 +1,7 @@
 import { errAsync, okAsync } from "neverthrow";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import test, { beforeEach } from "node:test";
@@ -34,6 +35,7 @@ const { bootstrap: bootstrapKwikpay, parse: parseKwikpay } = await import(
 const { multitransfer, parse: parseMultitransfer } = await import(
   "../src/providers/multitransfer"
 );
+const { api, request } = await import("../src/providers/types");
 const { parse: parseUnired } = await import("../src/providers/unired");
 const { isValidRate, paused, pausedRates } = await import("../src/rates");
 const { forget, remember, stored } = await import("../src/session");
@@ -745,6 +747,33 @@ test("stores the word that fits each kind of provider answer", async () => {
     unired: "unavailable",
     multitransfer: "session",
   });
+});
+
+test("logs why a request never came back, not only that it failed", async () => {
+  // a port that was free a moment ago refuses offline and at once, and fetch
+  // buries ECONNREFUSED exactly as deep as the ETIMEDOUT seen in production
+  const port = await new Promise((resolve) => {
+    const server = net.createServer().listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+
+  const logged = [];
+  const error = console.error;
+  console.error = (...args) => logged.push(args.join(" "));
+
+  try {
+    const result = await request(
+      "cbr",
+      api.get(`http://127.0.0.1:${port}/`, { retry: 0 })
+    );
+    assert.equal(result._unsafeUnwrapErr(), "unavailable");
+  } finally {
+    console.error = error;
+  }
+
+  assert.match(logged.join("\n"), /ECONNREFUSED/);
 });
 
 test("drops stored quotes, fees and failures that make no sense", async () => {
